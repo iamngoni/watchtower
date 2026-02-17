@@ -437,6 +437,57 @@ pub async fn tasks_partial(
     HttpResponse::Ok().content_type("text/html").body(html)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct SessionsPartialQuery {
+    #[serde(rename = "type")]
+    session_type: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "partials/session_item.html")]
+struct SessionItemTemplate {
+    session: Session,
+}
+
+#[get("/partials/sessions")]
+pub async fn sessions_partial(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    query: web::Query<SessionsPartialQuery>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let session_type = query.session_type.as_deref().filter(|s| !s.is_empty());
+    
+    let sessions = db::list_sessions(&pool, session_type, 100, 0)
+        .await
+        .unwrap_or_default();
+    
+    if sessions.is_empty() {
+        return HttpResponse::Ok().content_type("text/html").body(r#"
+            <div class="flex flex-col items-center justify-center py-16 text-center px-4">
+                <i data-lucide="history" class="w-12 h-12 text-wt-text-tertiary mb-3"></i>
+                <p class="text-sm text-wt-text-secondary">No sessions found</p>
+            </div>
+            <script>lucide.createIcons();</script>
+        "#);
+    }
+    
+    let mut html = String::new();
+    for session in sessions {
+        let template = SessionItemTemplate { session };
+        if let Ok(rendered) = template.render() {
+            html.push_str(&rendered);
+        }
+    }
+    html.push_str("<script>formatAllTimestamps(); formatAllNumbers(); lucide.createIcons();</script>");
+    
+    HttpResponse::Ok().content_type("text/html").body(html)
+}
+
 #[get("/partials/tasks/{id}/detail")]
 pub async fn task_detail_partial(
     req: HttpRequest,

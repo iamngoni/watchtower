@@ -34,10 +34,10 @@
                 </thead>
                 <tbody class="divide-y divide-wt-border-subtle">
                     {% for job in jobs %}
-                    <tr class="hover:bg-wt-bg-sidebar/50">
+                    <tr class="hover:bg-wt-bg-sidebar/50" id="cron-row-{{ job.job_id }}">
                         <!-- Status indicator -->
                         <td class="py-4 px-6">
-                            <div class="w-2.5 h-2.5 rounded-full
+                            <div class="status-dot w-2.5 h-2.5 rounded-full
                                 {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
                         </td>
                         
@@ -86,14 +86,14 @@
                         <td class="py-4 px-6">
                             <div class="flex items-center justify-end gap-3">
                                 <!-- Run Now button -->
-                                <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors" title="Run Now">
+                                <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="Run Now">
                                     <i data-lucide="play" class="w-4 h-4"></i>
                                 </button>
                                 
                                 <!-- Enable/Disable toggle -->
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" class="sr-only peer" {% if job.enabled != 0 %}checked{% endif %} onchange="toggleCronJob('{{ job.job_id }}', this.checked)">
-                                    <div class="w-9 h-5 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
+                                <label class="relative inline-flex items-center cursor-pointer min-w-[44px] min-h-[44px] justify-center">
+                                    <input type="checkbox" class="sr-only peer cron-toggle" data-job-id="{{ job.job_id }}" {% if job.enabled != 0 %}checked{% endif %}>
+                                    <div class="w-11 h-6 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
                                 </label>
                             </div>
                         </td>
@@ -106,10 +106,10 @@
         <!-- Mobile Card View -->
         <div class="lg:hidden divide-y divide-wt-border-subtle">
             {% for job in jobs %}
-            <div class="p-4">
+            <div class="p-4" id="cron-card-{{ job.job_id }}">
                 <div class="flex items-start justify-between mb-3">
                     <div class="flex items-center gap-2">
-                        <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                        <div class="status-dot w-2.5 h-2.5 rounded-full flex-shrink-0
                             {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
                         <p class="text-sm font-semibold text-wt-text-primary">{{ job.name }}</p>
                     </div>
@@ -122,25 +122,35 @@
                     {% endmatch %}
                 </div>
                 
-                <div class="flex items-center gap-4 text-xs text-wt-text-tertiary mb-3">
-                    <code class="bg-wt-bg-card px-2 py-1 rounded">{{ job.schedule }}</code>
-                    <span>
-                        Last: {% match job.last_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}Never{% endmatch %}
-                    </span>
+                <div class="flex flex-col gap-2 text-xs text-wt-text-tertiary mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-wt-text-secondary">Schedule:</span>
+                        <code class="bg-wt-bg-card px-2 py-1 rounded">{{ job.schedule }}</code>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span>
+                            Last: {% match job.last_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}Never{% endmatch %}
+                        </span>
+                    </div>
+                    <div>
+                        Next: {% match job.next_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}—{% endmatch %}
+                    </div>
                 </div>
                 
                 <div class="flex items-center justify-between">
                     <span class="text-xs text-wt-text-tertiary">
-                        Next: {% match job.next_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}—{% endmatch %}
+                        {% if job.consecutive_errors > 0 %}
+                        <span class="text-wt-accent-red">{{ job.consecutive_errors }} error(s)</span>
+                        {% endif %}
                     </span>
                     
-                    <div class="flex items-center gap-3">
-                        <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors">
-                            <i data-lucide="play" class="w-4 h-4"></i>
+                    <div class="flex items-center gap-2">
+                        <button onclick="runCronJob('{{ job.job_id }}')" class="p-3 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
+                            <i data-lucide="play" class="w-5 h-5"></i>
                         </button>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" {% if job.enabled != 0 %}checked{% endif %} onchange="toggleCronJob('{{ job.job_id }}', this.checked)">
-                            <div class="w-9 h-5 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
+                        <label class="relative inline-flex items-center cursor-pointer min-w-[44px] min-h-[44px] justify-center">
+                            <input type="checkbox" class="sr-only peer cron-toggle" data-job-id="{{ job.job_id }}" {% if job.enabled != 0 %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
                         </label>
                     </div>
                 </div>
@@ -150,24 +160,94 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Toast notification -->
+<div id="toast" class="fixed bottom-24 lg:bottom-8 left-1/2 -translate-x-1/2 bg-wt-bg-card border border-wt-border-default rounded-lg px-4 py-3 shadow-lg hidden z-50">
+    <p id="toast-message" class="text-sm text-wt-text-primary"></p>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
     formatAllTimestamps();
 
-    // Placeholder functions for cron controls
-    function runCronJob(jobId) {
-        // This will be wired up to the actual API later
-        console.log('Run cron job:', jobId);
-        // Show a toast or feedback
-        alert('Run now triggered for: ' + jobId + '\n(API integration pending)');
+    function showToast(message, duration = 3000) {
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-message');
+        toastMsg.textContent = message;
+        toast.classList.remove('hidden');
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, duration);
     }
 
-    function toggleCronJob(jobId, enabled) {
-        // This will be wired up to the actual API later
-        console.log('Toggle cron job:', jobId, enabled);
-        // The visual toggle already works, API integration pending
+    async function runCronJob(jobId) {
+        try {
+            const response = await fetch(`/api/cron/${jobId}/run`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                showToast('Run requested! The agent will pick this up on next check.');
+            } else {
+                const error = await response.json();
+                showToast('Error: ' + (error.error || 'Failed to request run'));
+            }
+        } catch (e) {
+            showToast('Error: Failed to connect');
+        }
     }
+
+    // Wire up all toggle switches
+    document.querySelectorAll('.cron-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async function() {
+            const jobId = this.dataset.jobId;
+            const enabled = this.checked;
+            
+            try {
+                const response = await fetch(`/api/cron/${jobId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                
+                if (response.ok) {
+                    // Update the status dot
+                    const row = document.getElementById(`cron-row-${jobId}`);
+                    const card = document.getElementById(`cron-card-${jobId}`);
+                    
+                    [row, card].forEach(el => {
+                        if (!el) return;
+                        const dot = el.querySelector('.status-dot');
+                        if (dot) {
+                            dot.classList.remove('bg-wt-text-tertiary', 'bg-wt-accent-green', 'bg-wt-accent-red', 'animate-pulse');
+                            if (!enabled) {
+                                dot.classList.add('bg-wt-text-tertiary');
+                            } else {
+                                dot.classList.add('bg-wt-accent-green');
+                            }
+                        }
+                    });
+                    
+                    showToast(enabled ? 'Cron job enabled' : 'Cron job disabled');
+                } else {
+                    // Revert toggle
+                    this.checked = !enabled;
+                    const error = await response.json();
+                    showToast('Error: ' + (error.error || 'Failed to update'));
+                }
+            } catch (e) {
+                // Revert toggle
+                this.checked = !enabled;
+                showToast('Error: Failed to connect');
+            }
+        });
+    });
 </script>
 {% endblock %}

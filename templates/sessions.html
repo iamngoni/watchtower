@@ -8,7 +8,13 @@
             <h1 class="font-display text-xl font-bold text-wt-text-primary">Sessions</h1>
         </div>
         <div class="flex items-center gap-3">
-            <select id="session-type-filter" class="bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary outline-none focus:border-wt-accent-indigo">
+            <select id="session-type-filter" 
+                    class="bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary outline-none focus:border-wt-accent-indigo"
+                    hx-get="/partials/sessions"
+                    hx-target="#sessions-list"
+                    hx-swap="innerHTML"
+                    hx-trigger="change"
+                    name="type">
                 <option value="">All Types</option>
                 <option value="conversation">Conversation</option>
                 <option value="sub_agent">Sub-Agent</option>
@@ -19,50 +25,48 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto">
-        {% if sessions.is_empty() %}
-        <div class="flex flex-col items-center justify-center h-full text-center px-4">
-            <i data-lucide="history" class="w-16 h-16 text-wt-text-tertiary mb-4"></i>
-            <h2 class="text-lg font-semibold text-wt-text-primary mb-2">No sessions yet</h2>
-            <p class="text-sm text-wt-text-secondary">Sessions will appear here when reported by the agent</p>
-        </div>
-        {% else %}
         <div class="divide-y divide-wt-border-subtle" id="sessions-list">
+            {% if sessions.is_empty() %}
+            <div class="flex flex-col items-center justify-center py-16 text-center px-4">
+                <i data-lucide="history" class="w-12 h-12 text-wt-text-tertiary mb-3"></i>
+                <p class="text-sm font-medium text-wt-text-secondary mb-1">No sessions yet</p>
+                <p class="text-xs text-wt-text-tertiary">Sessions will appear here when reported by the agent</p>
+            </div>
+            {% else %}
             {% for session in sessions %}
-            <div class="flex items-center gap-3 px-4 lg:px-8 py-4 hover:bg-wt-bg-sidebar/50 session-item" data-session-type="{{ session.session_type }}">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 lg:px-8 py-4 hover:bg-wt-bg-sidebar/50 session-item" data-session-type="{{ session.session_type }}">
                 <!-- Icon -->
-                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center flex-shrink-0
-                    {% if session.session_type == "conversation" %}bg-wt-accent-blue-light{% else %}{% if session.session_type == "sub_agent" %}bg-wt-accent-indigo-light{% else %}bg-wt-accent-orange-light{% endif %}{% endif %}">
-                    <i data-lucide="{% if session.session_type == "conversation" %}message-square{% else %}{% if session.session_type == "sub_agent" %}git-branch{% else %}clock{% endif %}{% endif %}" 
-                       class="w-4 h-4 lg:w-5 lg:h-5 {% if session.session_type == "conversation" %}text-wt-accent-blue{% else %}{% if session.session_type == "sub_agent" %}text-wt-accent-indigo{% else %}text-wt-accent-orange{% endif %}{% endif %}"></i>
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                        {% if session.session_type == "conversation" %}bg-wt-accent-blue-light{% else %}{% if session.session_type == "sub_agent" %}bg-wt-accent-indigo-light{% else %}bg-wt-accent-orange-light{% endif %}{% endif %}">
+                        <i data-lucide="{% if session.session_type == "conversation" %}message-square{% else %}{% if session.session_type == "sub_agent" %}git-branch{% else %}clock{% endif %}{% endif %}" 
+                           class="w-4 h-4 lg:w-5 lg:h-5 {% if session.session_type == "conversation" %}text-wt-accent-blue{% else %}{% if session.session_type == "sub_agent" %}text-wt-accent-indigo{% else %}text-wt-accent-orange{% endif %}{% endif %}"></i>
+                    </div>
+                    
+                    <!-- Info -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-wt-text-primary truncate">
+                            {% match session.title %}
+                            {% when Some with (t) %}{{ t }}{% when None %}{{ session.session_key }}{% endmatch %}
+                        </p>
+                        <p class="text-xs text-wt-text-tertiary">
+                            <span class="capitalize">{{ session.session_type }}</span> · 
+                            {% match session.model %}
+                            {% when Some with (m) %}{{ m }} · {% when None %}{% endmatch %}
+                            <span class="token-count" data-input="{{ session.input_tokens }}" data-output="{{ session.output_tokens }}">{{ session.input_tokens + session.output_tokens }}</span> tokens
+                        </p>
+                    </div>
                 </div>
                 
-                <!-- Info -->
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-wt-text-primary truncate">
-                        {% match session.title %}
-                        {% when Some with (t) %}{{ t }}{% when None %}{{ session.session_key }}{% endmatch %}
-                    </p>
-                    <p class="text-xs text-wt-text-tertiary">
-                        <span class="capitalize">{{ session.session_type }}</span> · 
-                        {% match session.model %}
-                        {% when Some with (m) %}{{ m }} · {% when None %}{% endmatch %}
-                        <span class="token-count" data-input="{{ session.input_tokens }}" data-output="{{ session.output_tokens }}">{{ session.input_tokens + session.output_tokens }}</span> tokens
-                    </p>
-                </div>
-                
-                <!-- Time -->
-                <div class="text-right hidden sm:block">
+                <!-- Time and Cost row on mobile -->
+                <div class="flex items-center justify-between sm:justify-end gap-4 pl-11 sm:pl-0">
                     <p class="text-xs text-wt-text-tertiary" data-timestamp="{{ session.started_at }}"></p>
-                </div>
-                
-                <!-- Cost -->
-                <div class="w-16 text-right">
                     <p class="text-sm font-semibold text-wt-text-primary" data-format-currency="{{ session.cost_usd }}">$0.00</p>
                 </div>
             </div>
             {% endfor %}
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -79,16 +83,18 @@
         el.textContent = formatNumber(input + output);
     });
 
-    // Filter sessions by type
-    document.getElementById('session-type-filter').addEventListener('change', function() {
-        const filterValue = this.value;
-        document.querySelectorAll('.session-item').forEach(item => {
-            if (!filterValue || item.dataset.sessionType === filterValue) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-            }
-        });
+    // Re-init after HTMX swaps
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'sessions-list') {
+            formatAllTimestamps();
+            formatAllNumbers();
+            document.querySelectorAll('.token-count').forEach(el => {
+                const input = parseInt(el.dataset.input) || 0;
+                const output = parseInt(el.dataset.output) || 0;
+                el.textContent = formatNumber(input + output);
+            });
+            lucide.createIcons();
+        }
     });
 </script>
 {% endblock %}

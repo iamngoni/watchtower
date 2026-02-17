@@ -110,6 +110,8 @@ async fn main() -> anyhow::Result<()> {
             // API routes - Cron
             .service(handlers::list_cron_jobs)
             .service(handlers::sync_cron_jobs)
+            .service(handlers::update_cron_job)
+            .service(handlers::run_cron_job)
             // API routes - Usage
             .service(handlers::get_usage)
             .service(handlers::report_usage)
@@ -122,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
             .service(web::sessions_page)
             // HTMX partials
             .service(web::events_partial)
+            .service(web::sessions_partial)
             .service(web::task_detail_partial)  // More specific route first
             .service(web::tasks_partial)
             // Static files

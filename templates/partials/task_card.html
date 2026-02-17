@@ -2,6 +2,7 @@
      data-task-id="{{ task.id }}"
      data-priority="{{ task.priority }}"
      data-assigned="{{ task.assigned_to }}"
+     data-created-by="{{ task.created_by }}"
      onclick="openTaskDetail({{ task.id }})">
     <!-- Title row with priority dot -->
     <div class="flex items-start gap-2">
@@ -16,11 +17,13 @@
     {% when None %}
     {% endmatch %}
     
-    <!-- Bottom row: Priority badge + Assignee -->
+    <!-- Bottom row: Priority badge + Created by + Assignee -->
     <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
             <!-- Priority badge -->
             <span class="priority-badge px-2 py-0.5 rounded-full text-[10px] font-semibold">{{ task.priority }}</span>
+            <!-- Created by badge -->
+            <span class="created-by-badge text-xs" title="Created by {{ task.created_by }}"></span>
         </div>
         
         <!-- Assignee indicator -->
@@ -37,6 +40,7 @@
     
     const priority = card.dataset.priority;
     const assigned = card.dataset.assigned;
+    const createdBy = card.dataset.createdBy;
     
     // Priority dot
     const dot = card.querySelector('.priority-dot');
@@ -59,6 +63,12 @@
         } else {
             badge.classList.add('bg-wt-accent-green-light', 'text-wt-accent-green');
         }
+    }
+    
+    // Created by badge
+    const createdBadge = card.querySelector('.created-by-badge');
+    if (createdBadge) {
+        createdBadge.textContent = createdBy === 'agent' ? '🤖' : '👤';
     }
     
     // Assignee icon

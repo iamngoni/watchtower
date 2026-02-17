@@ -471,6 +471,105 @@ pub async fn list_cron_jobs(
 }
 
 #[derive(Debug, serde::Deserialize)]
+pub struct UpdateCronJobBody {
+    #[serde(default)]
+    enabled: Option<bool>,
+}
+
+#[patch("/api/cron/{job_id}")]
+pub async fn update_cron_job(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    path: web::Path<String>,
+    body: web::Json<UpdateCronJobBody>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let job_id = path.into_inner();
+    
+    if let Some(enabled) = body.enabled {
+        match db::update_cron_job_enabled(&pool, &job_id, enabled).await {
+            Ok(Some(job)) => {
+                info!(job_id = %job_id, enabled = enabled, "Cron job updated");
+                HttpResponse::Ok().json(job)
+            }
+            Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Cron job not found"
+            })),
+            Err(e) => {
+                error!("Failed to update cron job {}: {}", job_id, e);
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": e.to_string()
+                }))
+            }
+        }
+    } else {
+        HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "No fields to update"
+        }))
+    }
+}
+
+#[post("/api/cron/{job_id}/run")]
+pub async fn run_cron_job(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    broadcaster: web::Data<Broadcaster>,
+    path: web::Path<String>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let job_id = path.into_inner();
+    
+    // Check job exists
+    match db::get_cron_job(&pool, &job_id).await {
+        Ok(Some(job)) => {
+            // Record a "run requested" event
+            let event = CreateEvent {
+                event_type: "cron_run_requested".to_string(),
+                summary: format!("Manual run requested for cron job: {}", job.name),
+                detail: Some(format!("Job ID: {}", job_id)),
+                session_id: None,
+                task_id: None,
+                metadata: Some(serde_json::json!({
+                    "job_id": job_id,
+                    "job_name": job.name
+                })),
+            };
+            
+            match db::insert_event(&pool, &event).await {
+                Ok(evt) => {
+                    broadcaster.broadcast("event", serde_json::to_value(&evt).unwrap());
+                    info!(job_id = %job_id, "Cron job run requested");
+                    HttpResponse::Ok().json(serde_json::json!({
+                        "status": "run_requested",
+                        "job_id": job_id,
+                        "message": "Run request recorded. The agent will pick this up on next check."
+                    }))
+                }
+                Err(e) => {
+                    error!("Failed to record run request for cron job {}: {}", job_id, e);
+                    HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": e.to_string()
+                    }))
+                }
+            }
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Cron job not found"
+        })),
+        Err(e) => {
+            error!("Failed to get cron job {}: {}", job_id, e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
 pub struct SyncCronRequest {
     jobs: Vec<SyncCronJob>,
 }

@@ -1,0 +1,30 @@
+<div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 lg:px-8 py-4 hover:bg-wt-bg-sidebar/50 session-item" data-session-type="{{ session.session_type }}">
+    <!-- Icon -->
+    <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-lg flex items-center justify-center flex-shrink-0
+            {% if session.session_type == "conversation" %}bg-wt-accent-blue-light{% else %}{% if session.session_type == "sub_agent" %}bg-wt-accent-indigo-light{% else %}bg-wt-accent-orange-light{% endif %}{% endif %}">
+            <i data-lucide="{% if session.session_type == "conversation" %}message-square{% else %}{% if session.session_type == "sub_agent" %}git-branch{% else %}clock{% endif %}{% endif %}" 
+               class="w-4 h-4 lg:w-5 lg:h-5 {% if session.session_type == "conversation" %}text-wt-accent-blue{% else %}{% if session.session_type == "sub_agent" %}text-wt-accent-indigo{% else %}text-wt-accent-orange{% endif %}{% endif %}"></i>
+        </div>
+        
+        <!-- Info -->
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-wt-text-primary truncate">
+                {% match session.title %}
+                {% when Some with (t) %}{{ t }}{% when None %}{{ session.session_key }}{% endmatch %}
+            </p>
+            <p class="text-xs text-wt-text-tertiary">
+                <span class="capitalize">{{ session.session_type }}</span> · 
+                {% match session.model %}
+                {% when Some with (m) %}{{ m }} · {% when None %}{% endmatch %}
+                <span class="token-count" data-input="{{ session.input_tokens }}" data-output="{{ session.output_tokens }}">{{ session.input_tokens + session.output_tokens }}</span> tokens
+            </p>
+        </div>
+    </div>
+    
+    <!-- Time and Cost row on mobile -->
+    <div class="flex items-center justify-between sm:justify-end gap-4 pl-11 sm:pl-0">
+        <p class="text-xs text-wt-text-tertiary" data-timestamp="{{ session.started_at }}"></p>
+        <p class="text-sm font-semibold text-wt-text-primary" data-format-currency="{{ session.cost_usd }}">$0.00</p>
+    </div>
+</div>

@@ -564,6 +564,45 @@ pub async fn list_cron_jobs(pool: &SqlitePool) -> Result<Vec<CronJob>> {
     Ok(jobs)
 }
 
+pub async fn get_cron_job(pool: &SqlitePool, job_id: &str) -> Result<Option<CronJob>> {
+    let job = sqlx::query_as::<_, CronJob>(
+        r#"
+        SELECT id, job_id, name, schedule, enabled, last_status, last_run_at, next_run_at, consecutive_errors, updated_at
+        FROM cron_jobs
+        WHERE job_id = ?
+        "#
+    )
+    .bind(job_id)
+    .fetch_optional(pool)
+    .await?;
+    
+    Ok(job)
+}
+
+pub async fn update_cron_job_enabled(pool: &SqlitePool, job_id: &str, enabled: bool) -> Result<Option<CronJob>> {
+    let now = chrono::Utc::now().timestamp();
+    let enabled_val = if enabled { 1i64 } else { 0i64 };
+    
+    let result = sqlx::query(
+        r#"
+        UPDATE cron_jobs
+        SET enabled = ?, updated_at = ?
+        WHERE job_id = ?
+        "#
+    )
+    .bind(enabled_val)
+    .bind(now)
+    .bind(job_id)
+    .execute(pool)
+    .await?;
+    
+    if result.rows_affected() == 0 {
+        return Ok(None);
+    }
+    
+    get_cron_job(pool, job_id).await
+}
+
 // ============================================================================
 // Usage
 // ============================================================================

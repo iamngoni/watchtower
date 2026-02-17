@@ -238,9 +238,9 @@
         </nav>
     </div>
 
-    <!-- Task Detail Modal Container -->
-    <div id="task-detail-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
-        <div id="task-detail-content" class="bg-wt-bg-sidebar rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-wt-border-subtle">
+    <!-- Task Detail Modal Container - Full screen on mobile -->
+    <div id="task-detail-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-0 sm:p-4">
+        <div id="task-detail-content" class="bg-wt-bg-sidebar h-full sm:h-auto sm:rounded-2xl w-full sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto border-0 sm:border border-wt-border-subtle">
             <!-- Content loaded via HTMX -->
         </div>
     </div>
