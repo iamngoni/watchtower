@@ -196,11 +196,22 @@
         groupRecentEvents();
     });
 
-    // Filter functionality
-    let currentFilter = 'all';
+    // Filter functionality with URL persistence
+    let currentFilter = new URLSearchParams(window.location.search).get('filter') || 'all';
     
-    function applyFilter(filter) {
+    function applyFilter(filter, updateUrl = true) {
         currentFilter = filter;
+        
+        // Update URL without page reload
+        if (updateUrl) {
+            const url = new URL(window.location);
+            if (filter === 'all') {
+                url.searchParams.delete('filter');
+            } else {
+                url.searchParams.set('filter', filter);
+            }
+            window.history.replaceState({}, '', url);
+        }
         const events = document.querySelectorAll('.event-item');
         
         events.forEach(event => {
@@ -339,5 +350,10 @@
     // Initialize
     updateAutoScrollButton();
     groupRecentEvents();
+    
+    // Apply persisted filter on load
+    if (currentFilter !== 'all') {
+        applyFilter(currentFilter, false);
+    }
 </script>
 {% endblock %}

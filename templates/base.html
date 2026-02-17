@@ -161,7 +161,11 @@
             </div>
             
             <!-- Sidebar Footer -->
-            <div class="mt-auto px-4 pb-6">
+            <div class="mt-auto px-4 pb-6 space-y-1">
+                <a href="/settings" class="flex items-center gap-2 px-4 py-2 rounded-xl text-wt-text-tertiary hover:bg-wt-bg-card transition-colors w-full {% if active_page == "settings" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% endif %}">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="text-xs font-medium">Settings</span>
+                </a>
                 <button onclick="openKeyboardShortcuts()" class="flex items-center gap-2 px-4 py-2 rounded-xl text-wt-text-tertiary hover:bg-wt-bg-card transition-colors w-full">
                     <i data-lucide="keyboard" class="w-4 h-4"></i>
                     <span class="text-xs font-medium">Keyboard shortcuts</span>

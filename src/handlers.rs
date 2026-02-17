@@ -841,3 +841,57 @@ pub async fn get_activity_summary(
         }
     }
 }
+
+// ============================================================================
+// Admin API (Data Management)
+// ============================================================================
+
+#[post("/api/admin/clear-events")]
+pub async fn clear_events(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    match db::clear_all_events(&pool).await {
+        Ok(count) => {
+            info!(count = count, "Cleared all events");
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": "ok",
+                "deleted": count
+            }))
+        }
+        Err(e) => {
+            error!("Failed to clear events: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+#[post("/api/admin/reset-database")]
+pub async fn reset_database(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    match db::reset_all_data(&pool).await {
+        Ok(_) => {
+            info!("Database reset");
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": "ok",
+                "message": "All data cleared"
+            }))
+        }
+        Err(e) => {
+            error!("Failed to reset database: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}

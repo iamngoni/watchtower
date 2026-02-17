@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col min-h-screen">
+    <!-- Header -->
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-4 lg:px-8">
+        <div class="flex items-center gap-3">
+            <h1 class="font-display text-xl font-bold text-wt-text-primary">Settings</h1>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-4 lg:p-8">
+        <div class="max-w-2xl mx-auto space-y-6">
+            
+            <!-- About Section -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-6 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">About</h2>
+                </div>
+                <div class="p-4 lg:p-6 space-y-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-wt-accent-indigo rounded-xl flex items-center justify-center">
+                            <i data-lucide="radar" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-display text-lg font-bold text-wt-text-primary">Watchtower</h3>
+                            <p class="text-sm text-wt-text-secondary">Agent Monitoring Dashboard</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 pt-2">
+                        <div class="bg-wt-bg-page rounded-lg p-3">
+                            <p class="text-[10px] text-wt-text-tertiary mb-0.5">Version</p>
+                            <p class="text-sm font-mono font-medium text-wt-text-primary">{{ version }}</p>
+                        </div>
+                        <div class="bg-wt-bg-page rounded-lg p-3">
+                            <p class="text-[10px] text-wt-text-tertiary mb-0.5">Uptime</p>
+                            <p class="text-sm font-medium text-wt-text-primary" id="uptime-display">—</p>
+                        </div>
+                    </div>
+                    
+                    <a href="https://github.com/iamngoni/watchtower" target="_blank" 
+                       class="flex items-center gap-2 text-sm text-wt-accent-indigo hover:underline">
+                        <i data-lucide="github" class="w-4 h-4"></i>
+                        <span>View on GitHub</span>
+                        <i data-lucide="external-link" class="w-3 h-3"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- API Token Section -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-6 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">API Access</h2>
+                </div>
+                <div class="p-4 lg:p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-wt-text-secondary mb-2">API Token</label>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 bg-wt-bg-page rounded-lg px-4 py-2.5 font-mono text-sm text-wt-text-tertiary">
+                                {% if api_token_masked.is_empty() %}
+                                <span class="text-wt-text-tertiary italic">Not configured</span>
+                                {% else %}
+                                {{ api_token_masked }}
+                                {% endif %}
+                            </div>
+                            <button onclick="copyApiEndpoint()" class="p-2.5 rounded-lg bg-wt-bg-page hover:bg-wt-border-subtle text-wt-text-secondary">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-wt-text-tertiary mt-2">
+                            Configure via <code class="bg-wt-bg-page px-1.5 py-0.5 rounded">WATCHTOWER_API_TOKEN</code> environment variable
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-wt-text-secondary mb-2">API Endpoint</label>
+                        <div class="bg-wt-bg-page rounded-lg px-4 py-2.5 font-mono text-sm text-wt-text-primary">
+                            {{ api_endpoint }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Appearance Section -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-6 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">Appearance</h2>
+                </div>
+                <div class="p-4 lg:p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-wt-text-primary">Theme</p>
+                            <p class="text-xs text-wt-text-tertiary">Switch between dark and light mode</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="theme-dark" onclick="setTheme('dark')" 
+                                    class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-wt-accent-indigo-light text-wt-accent-indigo">
+                                <i data-lucide="moon" class="w-3.5 h-3.5 inline mr-1"></i>Dark
+                            </button>
+                            <button id="theme-light" onclick="setTheme('light')" 
+                                    class="theme-btn px-3 py-1.5 rounded-lg text-xs font-medium text-wt-text-tertiary hover:bg-wt-bg-page">
+                                <i data-lucide="sun" class="w-3.5 h-3.5 inline mr-1"></i>Light
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Section -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-6 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">Notifications</h2>
+                    <p class="text-xs text-wt-text-tertiary mt-1">Configure which events trigger Telegram notifications</p>
+                </div>
+                <div class="p-4 lg:p-6 space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-wt-bg-page cursor-pointer hover:bg-wt-border-subtle transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="alert-circle" class="w-4 h-4 text-wt-accent-red"></i>
+                            <span class="text-sm text-wt-text-primary">Errors & Alerts</span>
+                        </div>
+                        <input type="checkbox" checked disabled class="w-4 h-4 rounded accent-wt-accent-indigo">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-wt-bg-page cursor-pointer hover:bg-wt-border-subtle transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="check-circle" class="w-4 h-4 text-wt-accent-green"></i>
+                            <span class="text-sm text-wt-text-primary">Task Completions</span>
+                        </div>
+                        <input type="checkbox" checked disabled class="w-4 h-4 rounded accent-wt-accent-indigo">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-wt-bg-page cursor-pointer hover:bg-wt-border-subtle transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="clock" class="w-4 h-4 text-wt-accent-orange"></i>
+                            <span class="text-sm text-wt-text-primary">Cron Job Failures</span>
+                        </div>
+                        <input type="checkbox" checked disabled class="w-4 h-4 rounded accent-wt-accent-indigo">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg bg-wt-bg-page cursor-pointer hover:bg-wt-border-subtle transition-colors">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="dollar-sign" class="w-4 h-4 text-wt-accent-indigo"></i>
+                            <span class="text-sm text-wt-text-primary">Daily Cost Summary</span>
+                        </div>
+                        <input type="checkbox" disabled class="w-4 h-4 rounded accent-wt-accent-indigo">
+                    </label>
+                    <p class="text-xs text-wt-text-tertiary pt-2 italic">
+                        Note: Notification settings are managed by the agent configuration
+                    </p>
+                </div>
+            </div>
+
+            <!-- Data Management Section -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-6 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">Data Management</h2>
+                </div>
+                <div class="p-4 lg:p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                            <p class="text-[10px] text-wt-text-tertiary mb-1">Events</p>
+                            <p class="font-display text-lg font-bold text-wt-text-primary">{{ event_count }}</p>
+                        </div>
+                        <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                            <p class="text-[10px] text-wt-text-tertiary mb-1">Sessions</p>
+                            <p class="font-display text-lg font-bold text-wt-text-primary">{{ session_count }}</p>
+                        </div>
+                        <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                            <p class="text-[10px] text-wt-text-tertiary mb-1">Tasks</p>
+                            <p class="font-display text-lg font-bold text-wt-text-primary">{{ task_count }}</p>
+                        </div>
+                        <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                            <p class="text-[10px] text-wt-text-tertiary mb-1">Database Size</p>
+                            <p class="font-display text-lg font-bold text-wt-text-primary">{{ db_size }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-2 space-y-2">
+                        <button onclick="clearEvents()" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-wt-border-default text-wt-text-secondary hover:bg-wt-bg-page transition-colors text-sm">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <span>Clear All Events</span>
+                        </button>
+                        <button onclick="resetDatabase()" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-wt-accent-red/50 text-wt-accent-red hover:bg-wt-accent-red-light transition-colors text-sm">
+                            <i data-lucide="database" class="w-4 h-4"></i>
+                            <span>Reset Database</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-wt-text-tertiary">
+                        ⚠️ These actions are irreversible. Make sure to backup your data first.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Calculate and display uptime
+    const startTime = {{ start_time }};
+    function updateUptime() {
+        const now = Math.floor(Date.now() / 1000);
+        const diff = now - startTime;
+        
+        const days = Math.floor(diff / 86400);
+        const hours = Math.floor((diff % 86400) / 3600);
+        const minutes = Math.floor((diff % 3600) / 60);
+        
+        let uptime = '';
+        if (days > 0) uptime += `${days}d `;
+        if (hours > 0 || days > 0) uptime += `${hours}h `;
+        uptime += `${minutes}m`;
+        
+        document.getElementById('uptime-display').textContent = uptime;
+    }
+    updateUptime();
+    setInterval(updateUptime, 60000);
+    
+    // Theme switching (persists in localStorage)
+    function setTheme(theme) {
+        localStorage.setItem('theme', theme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.remove('bg-wt-accent-indigo-light', 'text-wt-accent-indigo');
+            btn.classList.add('text-wt-text-tertiary');
+        });
+        const activeBtn = document.getElementById(`theme-${theme}`);
+        if (activeBtn) {
+            activeBtn.classList.remove('text-wt-text-tertiary');
+            activeBtn.classList.add('bg-wt-accent-indigo-light', 'text-wt-accent-indigo');
+        }
+        
+        // Apply theme (currently only dark is fully styled)
+        if (theme === 'light') {
+            showToast('Light mode coming soon!', 'info');
+        }
+    }
+    
+    // Initialize theme state
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+    
+    // Copy API endpoint
+    function copyApiEndpoint() {
+        navigator.clipboard.writeText('{{ api_endpoint }}');
+        showToast('API endpoint copied!', 'success');
+    }
+    
+    // Clear events
+    async function clearEvents() {
+        if (!confirm('Are you sure you want to clear all events? This cannot be undone.')) return;
+        
+        try {
+            const resp = await fetch('/api/admin/clear-events', { method: 'POST' });
+            if (resp.ok) {
+                showToast('Events cleared successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to clear events', 'error');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+    
+    // Reset database
+    async function resetDatabase() {
+        if (!confirm('⚠️ DANGER: This will delete ALL data including tasks, sessions, and events. Are you absolutely sure?')) return;
+        if (!confirm('Last chance! Type "RESET" in the next prompt to confirm.')) return;
+        
+        const confirmation = prompt('Type "RESET" to confirm database reset:');
+        if (confirmation !== 'RESET') {
+            showToast('Reset cancelled', 'info');
+            return;
+        }
+        
+        try {
+            const resp = await fetch('/api/admin/reset-database', { method: 'POST' });
+            if (resp.ok) {
+                showToast('Database reset successfully', 'success');
+                setTimeout(() => location.href = '/', 2000);
+            } else {
+                showToast('Failed to reset database', 'error');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+</script>
+{% endblock %}

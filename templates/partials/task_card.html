@@ -3,7 +3,10 @@
      data-priority="{{ task.priority }}"
      data-assigned="{{ task.assigned_to }}"
      data-created-by="{{ task.created_by }}"
+     data-created-at="{{ task.created_at }}"
      data-status="{{ task.status }}"
+     {% match task.due_date %}{% when Some with (due) %}data-due-date="{{ due }}"{% when None %}{% endmatch %}
+     {% match task.description %}{% when Some with (desc) %}data-description="{{ desc }}"{% when None %}{% endmatch %}
      onclick="openTaskDetail({{ task.id }})">
     <!-- Quick Actions Menu Button -->
     <button 
@@ -47,6 +50,22 @@
         </button>
     </div>
     
+    <!-- Hover Preview Tooltip -->
+    <div class="task-preview-tooltip hidden absolute left-full top-0 ml-2 z-30 w-64 bg-wt-bg-sidebar border border-wt-border-subtle rounded-xl shadow-xl p-3 pointer-events-none">
+        <p class="text-sm font-semibold text-wt-text-primary mb-2 truncate">{{ task.title }}</p>
+        {% match task.description %}
+        {% when Some with (desc) %}
+        <p class="text-xs text-wt-text-secondary line-clamp-3 mb-2">{{ desc }}</p>
+        {% when None %}
+        <p class="text-xs text-wt-text-tertiary italic mb-2">No description</p>
+        {% endmatch %}
+        <div class="flex items-center gap-2 text-[10px] text-wt-text-tertiary">
+            <span class="task-age-preview"></span>
+            <span>•</span>
+            <span class="capitalize">{{ task.status }}</span>
+        </div>
+    </div>
+    
     <!-- Title row with priority dot -->
     <div class="flex items-start gap-2 pr-8">
         <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 priority-dot"></div>
@@ -60,11 +79,23 @@
     {% when None %}
     {% endmatch %}
     
-    <!-- Bottom row: Priority badge + Created by + Assignee -->
+    <!-- Due Date Badge (if set) -->
+    {% match task.due_date %}
+    {% when Some with (due) %}
+    <div class="due-date-badge flex items-center gap-1 text-[10px] font-medium" data-due="{{ due }}">
+        <i data-lucide="calendar" class="w-3 h-3"></i>
+        <span class="due-date-text"></span>
+    </div>
+    {% when None %}
+    {% endmatch %}
+    
+    <!-- Bottom row: Priority badge + Task Age + Created by + Assignee -->
     <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
             <!-- Priority badge -->
             <span class="priority-badge px-2 py-0.5 rounded-full text-[10px] font-semibold">{{ task.priority }}</span>
+            <!-- Task age -->
+            <span class="task-age text-[10px] text-wt-text-tertiary" data-created="{{ task.created_at }}"></span>
             <!-- Created by badge -->
             <span class="created-by-badge text-xs" title="Created by {{ task.created_by }}"></span>
         </div>
@@ -84,6 +115,8 @@
     const priority = card.dataset.priority;
     const assigned = card.dataset.assigned;
     const createdBy = card.dataset.createdBy;
+    const createdAt = parseInt(card.dataset.createdAt) || 0;
+    const dueDate = parseInt(card.dataset.dueDate) || 0;
     
     // Priority dot
     const dot = card.querySelector('.priority-dot');
@@ -105,6 +138,46 @@
             badge.classList.add('bg-wt-accent-blue-light', 'text-wt-accent-blue');
         } else {
             badge.classList.add('bg-wt-accent-green-light', 'text-wt-accent-green');
+        }
+    }
+    
+    // Task age
+    const ageEl = card.querySelector('.task-age');
+    if (ageEl && createdAt) {
+        const now = Math.floor(Date.now() / 1000);
+        const diff = now - createdAt;
+        if (diff < 3600) {
+            ageEl.textContent = Math.floor(diff / 60) + 'm ago';
+        } else if (diff < 86400) {
+            ageEl.textContent = Math.floor(diff / 3600) + 'h ago';
+        } else {
+            ageEl.textContent = Math.floor(diff / 86400) + 'd ago';
+        }
+    }
+    
+    // Due date badge
+    const dueBadge = card.querySelector('.due-date-badge');
+    const dueText = card.querySelector('.due-date-text');
+    if (dueBadge && dueText && dueDate) {
+        const now = Math.floor(Date.now() / 1000);
+        const startOfToday = Math.floor(new Date().setHours(0,0,0,0) / 1000);
+        const startOfTomorrow = startOfToday + 86400;
+        const dueDateStart = Math.floor(new Date(dueDate * 1000).setHours(0,0,0,0) / 1000);
+        
+        if (dueDateStart < startOfToday) {
+            // Overdue
+            dueBadge.classList.add('text-wt-accent-red', 'bg-wt-accent-red-light', 'px-1.5', 'py-0.5', 'rounded');
+            const daysOverdue = Math.floor((startOfToday - dueDateStart) / 86400);
+            dueText.textContent = daysOverdue === 1 ? 'Overdue 1d' : `Overdue ${daysOverdue}d`;
+        } else if (dueDateStart < startOfTomorrow) {
+            // Due today
+            dueBadge.classList.add('text-wt-accent-orange', 'bg-wt-accent-orange-light', 'px-1.5', 'py-0.5', 'rounded');
+            dueText.textContent = 'Due today';
+        } else {
+            // Future date
+            dueBadge.classList.add('text-wt-text-tertiary');
+            const date = new Date(dueDate * 1000);
+            dueText.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
     }
     
@@ -132,5 +205,37 @@
             assigneeLucide.classList.add('text-wt-text-tertiary');
         }
     }
+    
+    // Preview tooltip on hover
+    let hoverTimeout;
+    const preview = card.querySelector('.task-preview-tooltip');
+    const agePreview = preview?.querySelector('.task-age-preview');
+    
+    if (preview && agePreview && createdAt) {
+        const now = Math.floor(Date.now() / 1000);
+        const diff = now - createdAt;
+        if (diff < 3600) {
+            agePreview.textContent = 'Created ' + Math.floor(diff / 60) + 'm ago';
+        } else if (diff < 86400) {
+            agePreview.textContent = 'Created ' + Math.floor(diff / 3600) + 'h ago';
+        } else {
+            agePreview.textContent = 'Created ' + Math.floor(diff / 86400) + 'd ago';
+        }
+    }
+    
+    card.addEventListener('mouseenter', function() {
+        hoverTimeout = setTimeout(function() {
+            if (preview) {
+                preview.classList.remove('hidden');
+            }
+        }, 500);
+    });
+    
+    card.addEventListener('mouseleave', function() {
+        clearTimeout(hoverTimeout);
+        if (preview) {
+            preview.classList.add('hidden');
+        }
+    });
 })();
 </script>

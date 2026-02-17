@@ -164,6 +164,13 @@ pub async fn list_events(
     Ok(events)
 }
 
+pub async fn count_events(pool: &SqlitePool) -> Result<i64> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM events")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+
 // ============================================================================
 // Tasks
 // ============================================================================
@@ -555,6 +562,13 @@ pub async fn list_sessions(
     };
     
     Ok(sessions)
+}
+
+pub async fn count_sessions(pool: &SqlitePool) -> Result<i64> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
 }
 
 // ============================================================================
@@ -981,4 +995,27 @@ pub async fn get_recent_completions(pool: &SqlitePool, limit: i32) -> Result<Vec
     .await?;
     
     Ok(tasks)
+}
+
+// ============================================================================
+// Admin Functions (Data Management)
+// ============================================================================
+
+pub async fn clear_all_events(pool: &SqlitePool) -> Result<i64> {
+    let result = sqlx::query("DELETE FROM events")
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() as i64)
+}
+
+pub async fn reset_all_data(pool: &SqlitePool) -> Result<()> {
+    // Delete in order to respect foreign key constraints
+    sqlx::query("DELETE FROM task_history").execute(pool).await?;
+    sqlx::query("DELETE FROM task_comments").execute(pool).await?;
+    sqlx::query("DELETE FROM events").execute(pool).await?;
+    sqlx::query("DELETE FROM tasks").execute(pool).await?;
+    sqlx::query("DELETE FROM sessions").execute(pool).await?;
+    sqlx::query("DELETE FROM usage_daily").execute(pool).await?;
+    sqlx::query("DELETE FROM cron_jobs").execute(pool).await?;
+    Ok(())
 }

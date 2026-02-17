@@ -14,6 +14,7 @@ use tracing_subscriber::FmtSubscriber;
 /// Application configuration
 #[derive(Clone)]
 pub struct Config {
+    pub host: String,
     pub port: u16,
     pub database_url: String,
     pub api_token: String,
@@ -26,6 +27,7 @@ pub struct Config {
 impl Config {
     fn from_env() -> Self {
         Self {
+            host: env::var("HOST").unwrap_or_else(|_| "localhost".to_string()),
             port: env::var("PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())
@@ -127,6 +129,9 @@ async fn main() -> anyhow::Result<()> {
             .service(handlers::get_daily_costs)
             .service(handlers::get_agent_status)
             .service(handlers::get_activity_summary)
+            // API routes - Admin
+            .service(handlers::clear_events)
+            .service(handlers::reset_database)
             // Web UI routes
             .service(web::index)
             .service(web::feed_page)
@@ -135,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             .service(web::cron_page)
             .service(web::sessions_page)
             .service(web::session_detail_page)
+            .service(web::settings_page)
             .service(web::favicon)
             // HTMX partials
             .service(web::events_partial)

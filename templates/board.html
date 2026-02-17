@@ -6,6 +6,18 @@
     <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-4 lg:px-8">
         <div class="flex items-center gap-3">
             <h1 class="font-display text-xl font-bold text-wt-text-primary">Kanban Board</h1>
+            <!-- Card Count Summary -->
+            <div id="board-summary" class="hidden sm:flex items-center gap-2 text-xs text-wt-text-tertiary">
+                <span class="total-count">{{ tasks_backlog.len() + tasks_todo.len() + tasks_in_progress.len() + tasks_blocked.len() + tasks_in_review.len() + tasks_done.len() }} tasks</span>
+                {% if tasks_blocked.len() > 0 %}
+                <span>•</span>
+                <span class="text-wt-accent-orange">{{ tasks_blocked.len() }} blocked</span>
+                {% endif %}
+                {% if tasks_in_progress.len() > 0 %}
+                <span>•</span>
+                <span class="text-wt-accent-indigo">{{ tasks_in_progress.len() }} in progress</span>
+                {% endif %}
+            </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
             <!-- View Toggle -->
@@ -19,6 +31,11 @@
                     <span class="hidden sm:inline">Swimlane</span>
                 </button>
             </div>
+            <!-- Clear Done Button -->
+            <button onclick="clearDoneTasks()" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-wt-border-default text-wt-text-secondary hover:bg-wt-bg-card transition-colors" title="Archive completed tasks">
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                <span>Clear Done</span>
+            </button>
             <button onclick="openCreateTaskModal()" class="hidden sm:flex items-center gap-2 bg-wt-accent-indigo text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-wt-accent-indigo/90 transition-colors">
                 <i data-lucide="plus" class="w-4 h-4"></i>
                 <span>New Task</span>
@@ -229,6 +246,13 @@
                 </div>
             </div>
             
+            <!-- Due Date -->
+            <div>
+                <label class="block text-sm font-medium text-wt-text-secondary mb-1">Due Date</label>
+                <input type="date" name="due_date" id="due-date-input"
+                    class="w-full bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2.5 text-sm text-wt-text-primary outline-none focus:border-wt-accent-indigo [color-scheme:dark]">
+            </div>
+            
             <div class="flex justify-end gap-3 pt-4">
                 <button type="button" onclick="closeCreateTaskModal()" class="px-4 py-2.5 rounded-lg text-sm font-medium text-wt-text-secondary hover:bg-wt-bg-card">Cancel</button>
                 <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-semibold bg-wt-accent-indigo text-white hover:bg-wt-accent-indigo/90">Create</button>
@@ -269,17 +293,33 @@
                 });
                 
                 if (response.ok) {
+                    const task = await response.json();
                     // Update column counts
                     updateColumnCounts();
+                    updateBoardSummary();
                     // Handle empty column states
                     handleEmptyColumns();
-                    if (window.showToast) showToast(`Moved to ${newStatus.replace('_', ' ')}`, 'success');
+                    const taskTitle = task.title ? `"${task.title.substring(0, 30)}${task.title.length > 30 ? '...' : ''}"` : 'Task';
+                    if (window.showToast) showToast(`Moved ${taskTitle} to ${formatStatus(newStatus)}`, 'success');
                 } else {
                     if (window.showToast) showToast('Failed to move task', 'error');
                 }
             }
         });
     });
+
+    // Format status for display
+    function formatStatus(status) {
+        const statusMap = {
+            'backlog': 'Backlog',
+            'todo': 'To Do',
+            'in_progress': 'In Progress',
+            'blocked': 'Blocked',
+            'in_review': 'In Review',
+            'done': 'Done'
+        };
+        return statusMap[status] || status.replace('_', ' ');
+    }
 
     // Update column counts
     function updateColumnCounts() {
@@ -291,6 +331,65 @@
                 countBadge.textContent = count;
             }
         });
+    }
+    
+    // Update board summary
+    function updateBoardSummary() {
+        const summary = document.getElementById('board-summary');
+        if (!summary) return;
+        
+        let total = 0;
+        let blocked = 0;
+        let inProgress = 0;
+        
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            const status = column.dataset.status;
+            const count = column.querySelectorAll('.task-card').length;
+            total += count;
+            if (status === 'blocked') blocked = count;
+            if (status === 'in_progress') inProgress = count;
+        });
+        
+        const totalEl = summary.querySelector('.total-count');
+        if (totalEl) totalEl.textContent = `${total} task${total !== 1 ? 's' : ''}`;
+    }
+    
+    // Clear done tasks (archive them)
+    async function clearDoneTasks() {
+        const doneColumn = document.querySelector('.kanban-column[data-status="done"]');
+        const doneTasks = doneColumn?.querySelectorAll('.task-card') || [];
+        
+        if (doneTasks.length === 0) {
+            showToast('No completed tasks to clear', 'info');
+            return;
+        }
+        
+        if (!confirm(`Archive ${doneTasks.length} completed task(s)? They will be moved to archived status.`)) {
+            return;
+        }
+        
+        let archived = 0;
+        for (const card of doneTasks) {
+            const taskId = card.dataset.taskId;
+            try {
+                const resp = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'archived' })
+                });
+                if (resp.ok) {
+                    card.remove();
+                    archived++;
+                }
+            } catch (e) {
+                console.error('Failed to archive task', taskId, e);
+            }
+        }
+        
+        handleEmptyColumns();
+        updateColumnCounts();
+        updateBoardSummary();
+        showToast(`Archived ${archived} task(s)`, 'success');
     }
 
     // Handle empty column states
@@ -316,6 +415,7 @@
         taskLabels = [];
         updateLabelsDisplay();
         document.getElementById('initial-status').value = status;
+        document.getElementById('due-date-input').value = '';
         document.getElementById('create-task-modal').classList.remove('hidden');
         document.getElementById('create-task-modal').classList.add('flex');
         document.body.style.overflow = 'hidden';
@@ -376,7 +476,8 @@
                 ...data,
                 labels: taskLabels,
                 status: targetStatus,
-                created_by: 'human'
+                created_by: 'human',
+                due_date: data.due_date ? Math.floor(new Date(data.due_date).getTime() / 1000) : null
             })
         });
         

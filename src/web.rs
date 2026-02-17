@@ -91,6 +91,10 @@ struct DashboardTemplate {
     error_cron_jobs: usize,
     // Cost
     today_cost: f64,
+    cost_trend_up: bool,
+    cost_trend_down: bool,
+    // Current task (if in progress)
+    current_task_title: String,
     // Agent Status (OpenClaw-focused)
     is_agent_active: bool,
     current_session: Option<String>,
@@ -110,6 +114,21 @@ struct DashboardTemplate {
     recent_events: Vec<Event>,
     blocked_tasks: Vec<Task>,
     failed_cron_jobs: Vec<CronJob>,
+}
+
+#[derive(Template)]
+#[template(path = "settings.html")]
+struct SettingsTemplate {
+    title: String,
+    active_page: String,
+    version: String,
+    start_time: i64,
+    api_token_masked: String,
+    api_endpoint: String,
+    event_count: i64,
+    session_count: i64,
+    task_count: i64,
+    db_size: String,
 }
 
 #[derive(Template)]
@@ -195,6 +214,8 @@ pub async fn index(
     
     // Get today's cost
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let yesterday = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    
     let stats = db::get_usage_stats(&pool, Some(&today), Some(&today))
         .await
         .unwrap_or_else(|_| UsageStats {
@@ -203,6 +224,24 @@ pub async fn index(
             total_cost_usd: 0.0,
             by_model: vec![],
         });
+    
+    let yesterday_stats = db::get_usage_stats(&pool, Some(&yesterday), Some(&yesterday))
+        .await
+        .unwrap_or_else(|_| UsageStats {
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cost_usd: 0.0,
+            by_model: vec![],
+        });
+    
+    let cost_trend_up = stats.total_cost_usd > yesterday_stats.total_cost_usd && yesterday_stats.total_cost_usd > 0.0;
+    let cost_trend_down = stats.total_cost_usd < yesterday_stats.total_cost_usd && yesterday_stats.total_cost_usd > 0.0;
+    
+    // Get current in-progress task title
+    let current_task_title = all_tasks.iter()
+        .find(|t| t.status == "in_progress")
+        .map(|t| t.title.clone())
+        .unwrap_or_default();
     
     // Get recent events
     let recent_events = db::list_events(&pool, None, 5, 0)
@@ -267,6 +306,9 @@ pub async fn index(
         disabled_cron_jobs,
         error_cron_jobs,
         today_cost: stats.total_cost_usd,
+        cost_trend_up,
+        cost_trend_down,
+        current_task_title,
         is_agent_active,
         current_session,
         current_model,
@@ -486,6 +528,78 @@ pub async fn session_detail_page(
         active_page: "sessions".to_string(),
         session,
         events,
+    };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Settings Page
+// ============================================================================
+
+// Static start time for uptime calculation
+static START_TIME: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
+
+fn get_start_time() -> i64 {
+    *START_TIME.get_or_init(|| chrono::Utc::now().timestamp())
+}
+
+#[get("/settings")]
+pub async fn settings_page(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    // Get counts
+    let tasks = db::list_tasks(&pool, None, None, None).await.unwrap_or_default();
+    let event_count = db::count_events(&pool).await.unwrap_or(0);
+    let session_count = db::count_sessions(&pool).await.unwrap_or(0);
+    let task_count = tasks.len() as i64;
+    
+    // Mask API token
+    let api_token_masked = if config.api_token.len() > 8 {
+        format!("{}...{}", &config.api_token[..4], &config.api_token[config.api_token.len()-4..])
+    } else if !config.api_token.is_empty() {
+        "****".to_string()
+    } else {
+        String::new()
+    };
+    
+    // Get database size
+    let db_path_str = config.database_url.replace("sqlite:", "").replace("?mode=rwc", "");
+    let db_path = std::path::Path::new(&db_path_str);
+    let db_size = if db_path.exists() {
+        let size = std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0);
+        if size > 1_000_000 {
+            format!("{:.1} MB", size as f64 / 1_000_000.0)
+        } else {
+            format!("{:.0} KB", size as f64 / 1_000.0)
+        }
+    } else {
+        "Unknown".to_string()
+    };
+    
+    let template = SettingsTemplate {
+        title: "Settings".to_string(),
+        active_page: "settings".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        start_time: get_start_time(),
+        api_token_masked,
+        api_endpoint: format!("http://{}:{}/api", config.host, config.port),
+        event_count,
+        session_count,
+        task_count,
+        db_size,
     };
     
     match template.render() {
