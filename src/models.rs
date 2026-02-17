@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -36,6 +35,7 @@ pub struct CreateEvent {
 // Tasks
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskPriority {
@@ -69,6 +69,7 @@ impl std::str::FromStr for TaskPriority {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
@@ -108,6 +109,7 @@ impl std::str::FromStr for TaskStatus {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Actor {
@@ -233,6 +235,7 @@ pub struct TaskHistory {
 // Sessions
 // ============================================================================
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionType {
@@ -308,6 +311,7 @@ pub struct CreateSession {
 
 fn default_session_type() -> String { "conversation".to_string() }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdateSession {
     #[serde(default)]

@@ -1,9 +1,11 @@
 use crate::models::SseMessage;
-use futures::stream::Stream;
+use actix_web::web::Bytes;
+use futures::Stream;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
 use tracing::debug;
 
 const CHANNEL_CAPACITY: usize = 100;
@@ -32,9 +34,7 @@ impl SseBroadcaster {
 
     /// Subscribe to the broadcast channel
     pub fn subscribe(&self) -> SseClient {
-        SseClient {
-            receiver: self.sender.subscribe(),
-        }
+        SseClient::new(self.sender.subscribe())
     }
 }
 
@@ -46,28 +46,36 @@ impl Default for SseBroadcaster {
 
 /// SSE client stream
 pub struct SseClient {
-    receiver: broadcast::Receiver<SseMessage>,
+    inner: BroadcastStream<SseMessage>,
+}
+
+impl SseClient {
+    pub fn new(receiver: broadcast::Receiver<SseMessage>) -> Self {
+        Self {
+            inner: BroadcastStream::new(receiver),
+        }
+    }
 }
 
 impl Stream for SseClient {
-    type Item = Result<actix_web::web::Bytes, actix_web::error::Error>;
+    type Item = Result<Bytes, actix_web::error::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.receiver).poll_recv(cx) {
-            Poll::Ready(Ok(msg)) => {
+        match Pin::new(&mut self.inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(msg))) => {
                 let data = format!(
                     "event: {}\ndata: {}\n\n",
                     msg.event,
                     serde_json::to_string(&msg.data).unwrap_or_else(|_| "{}".to_string())
                 );
-                Poll::Ready(Some(Ok(actix_web::web::Bytes::from(data))))
+                Poll::Ready(Some(Ok(Bytes::from(data))))
             }
-            Poll::Ready(Err(broadcast::error::RecvError::Closed)) => Poll::Ready(None),
-            Poll::Ready(Err(broadcast::error::RecvError::Lagged(_))) => {
+            Poll::Ready(Some(Err(_))) => {
                 // Skip lagged messages and continue
                 cx.waker().wake_by_ref();
                 Poll::Pending
             }
+            Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
     }

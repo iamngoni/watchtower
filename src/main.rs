@@ -43,7 +43,7 @@ impl Config {
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     // Initialize logging
-    let subscriber = FmtSubscriber::builder()
+    FmtSubscriber::builder()
         .with_max_level(Level::INFO)
         .with_target(false)
         .compact()

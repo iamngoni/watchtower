@@ -1,7 +1,7 @@
 <div class="bg-white dark:bg-wt-bg-page rounded-xl border border-wt-border-default p-3.5 space-y-2.5 cursor-move task-card" data-task-id="{{ task.id }}">
     <div class="flex items-start gap-2">
         <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0
-            {% if task.priority == "urgent" %}bg-wt-accent-red{% elif task.priority == "high" %}bg-wt-accent-orange{% elif task.priority == "normal" %}bg-wt-accent-blue{% else %}bg-wt-text-tertiary{% endif %}"></div>
+            {% if task.priority == "urgent" %}bg-wt-accent-red{% else %}{% if task.priority == "high" %}bg-wt-accent-orange{% else %}{% if task.priority == "normal" %}bg-wt-accent-blue{% else %}bg-wt-text-tertiary{% endif %}{% endif %}{% endif %}"></div>
         <span class="text-sm font-semibold text-wt-text-primary line-clamp-2">{{ task.title }}</span>
     </div>
     {% match task.description %}
@@ -14,14 +14,14 @@
             <span class="px-2.5 py-1 rounded-full bg-wt-accent-indigo-light text-wt-accent-indigo text-[11px] font-semibold">{{ task.priority }}</span>
         </div>
         <div class="w-6 h-6 rounded-full flex items-center justify-center
-            {% if task.assigned_to == "agent" %}bg-wt-accent-indigo{% elif task.assigned_to == "human" %}bg-wt-accent-green{% else %}bg-wt-bg-card{% endif %}">
+            {% if task.assigned_to == "agent" %}bg-wt-accent-indigo{% else %}{% if task.assigned_to == "human" %}bg-wt-accent-green{% else %}bg-wt-bg-card{% endif %}{% endif %}">
             {% if task.assigned_to == "agent" %}
             <i data-lucide="bot" class="w-3 h-3 text-white"></i>
-            {% elif task.assigned_to == "human" %}
+            {% else %}{% if task.assigned_to == "human" %}
             <i data-lucide="user" class="w-3 h-3 text-white"></i>
             {% else %}
             <i data-lucide="help-circle" class="w-3 h-3 text-wt-text-tertiary"></i>
-            {% endif %}
+            {% endif %}{% endif %}
         </div>
     </div>
 </div>

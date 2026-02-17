@@ -23,7 +23,7 @@
             <div class="flex items-center gap-3 px-8 py-4 hover:bg-wt-bg-sidebar/50">
                 <!-- Status indicator -->
                 <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
-                    {% if job.enabled == 0 %}bg-wt-text-tertiary{% elif job.consecutive_errors > 0 %}bg-wt-accent-red{% else %}bg-wt-accent-green{% endif %}"></div>
+                    {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
                 
                 <!-- Name -->
                 <div class="flex-1 min-w-0">
@@ -54,7 +54,7 @@
                     {% match job.last_status %}
                     {% when Some with (status) %}
                     <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold
-                        {% if status == "success" %}bg-wt-accent-green-light text-wt-accent-green{% elif status == "failed" %}bg-wt-accent-red-light text-wt-accent-red{% else %}bg-wt-bg-card text-wt-text-tertiary{% endif %}">{{ status }}</span>
+                        {% if status == "success" %}bg-wt-accent-green-light text-wt-accent-green{% else %}{% if status == "failed" %}bg-wt-accent-red-light text-wt-accent-red{% else %}bg-wt-bg-card text-wt-text-tertiary{% endif %}{% endif %}">{{ status }}</span>
                     {% when None %}
                     <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold bg-wt-bg-card text-wt-text-tertiary">pending</span>
                     {% endmatch %}

@@ -11,7 +11,7 @@ fn check_web_auth(req: &HttpRequest, config: &crate::Config) -> bool {
         return true; // No auth required
     }
     
-    // Check for session cookie or basic auth header
+    // Check for basic auth header
     if let Some(auth) = req.headers().get("Authorization") {
         if let Ok(auth_str) = auth.to_str() {
             if auth_str.starts_with("Basic ") {
@@ -27,7 +27,6 @@ fn check_web_auth(req: &HttpRequest, config: &crate::Config) -> bool {
 }
 
 fn base64_decode(input: &str) -> Result<String, ()> {
-    use std::io::Read;
     let bytes = base64_decode_bytes(input)?;
     String::from_utf8(bytes).map_err(|_| ())
 }
@@ -72,13 +71,6 @@ fn require_web_auth(req: &HttpRequest, config: &crate::Config) -> Option<HttpRes
 // ============================================================================
 // Templates
 // ============================================================================
-
-#[derive(Template)]
-#[template(path = "base.html")]
-struct BaseTemplate {
-    title: String,
-    active_page: String,
-}
 
 #[derive(Template)]
 #[template(path = "feed.html")]
@@ -132,7 +124,6 @@ struct SessionsTemplate {
 #[get("/")]
 pub async fn index(
     req: HttpRequest,
-    pool: web::Data<SqlitePool>,
     config: web::Data<crate::Config>,
 ) -> impl Responder {
     if let Some(resp) = require_web_auth(&req, &config) {

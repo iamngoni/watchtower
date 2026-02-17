@@ -18,7 +18,7 @@ askama_actix = "0.14"
 
 # Async runtime
 tokio = { version = "1.42", features = ["full", "sync"] }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "migrate"] }

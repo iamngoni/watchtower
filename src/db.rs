@@ -1,6 +1,7 @@
 use crate::models::*;
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+use sqlx::Row;
 use std::str::FromStr;
 use tracing::{debug, info};
 
@@ -38,19 +39,19 @@ pub async fn insert_event(pool: &SqlitePool, event: &CreateEvent) -> Result<Even
     
     let now = chrono::Utc::now().timestamp();
     
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO events (event_type, summary, detail, session_id, task_id, metadata, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-        "#,
-        event.event_type,
-        event.summary,
-        event.detail,
-        event.session_id,
-        event.task_id,
-        metadata,
-        now
+        "#
     )
+    .bind(&event.event_type)
+    .bind(&event.summary)
+    .bind(&event.detail)
+    .bind(&event.session_id)
+    .bind(event.task_id)
+    .bind(&metadata)
+    .bind(now)
     .execute(pool)
     .await?;
 
@@ -75,33 +76,31 @@ pub async fn list_events(
     offset: i64,
 ) -> Result<Vec<Event>> {
     let events = if let Some(et) = event_type {
-        sqlx::query_as!(
-            Event,
+        sqlx::query_as::<_, Event>(
             r#"
             SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
             FROM events
             WHERE event_type = ?
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-            "#,
-            et,
-            limit,
-            offset
+            "#
         )
+        .bind(et)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await?
     } else {
-        sqlx::query_as!(
-            Event,
+        sqlx::query_as::<_, Event>(
             r#"
             SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
             FROM events
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-            "#,
-            limit,
-            offset
+            "#
         )
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await?
     };
@@ -120,38 +119,38 @@ pub async fn insert_task(pool: &SqlitePool, task: &CreateTask) -> Result<Task> {
     
     let now = chrono::Utc::now().timestamp();
     
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO tasks (title, description, priority, status, labels, created_by, assigned_to, due_date, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-        task.title,
-        task.description,
-        task.priority,
-        task.status,
-        labels,
-        task.created_by,
-        task.assigned_to,
-        task.due_date,
-        now,
-        now
+        "#
     )
+    .bind(&task.title)
+    .bind(&task.description)
+    .bind(&task.priority)
+    .bind(&task.status)
+    .bind(&labels)
+    .bind(&task.created_by)
+    .bind(&task.assigned_to)
+    .bind(task.due_date)
+    .bind(now)
+    .bind(now)
     .execute(pool)
     .await?;
 
     let id = result.last_insert_rowid();
     
     // Record initial history
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO task_history (task_id, from_status, to_status, changed_by, created_at)
         VALUES (?, NULL, ?, ?, ?)
-        "#,
-        id,
-        task.status,
-        task.created_by,
-        now
+        "#
     )
+    .bind(id)
+    .bind(&task.status)
+    .bind(&task.created_by)
+    .bind(now)
     .execute(pool)
     .await?;
     
@@ -171,15 +170,14 @@ pub async fn insert_task(pool: &SqlitePool, task: &CreateTask) -> Result<Task> {
 }
 
 pub async fn get_task(pool: &SqlitePool, id: i64) -> Result<Option<Task>> {
-    let task = sqlx::query_as!(
-        Task,
+    let task = sqlx::query_as::<_, Task>(
         r#"
         SELECT id, title, description, priority, status, labels, created_by, assigned_to, due_date, created_at, updated_at
         FROM tasks
         WHERE id = ?
-        "#,
-        id
+        "#
     )
+    .bind(id)
     .fetch_optional(pool)
     .await?;
     
@@ -192,25 +190,7 @@ pub async fn list_tasks(
     priority: Option<&str>,
     assigned_to: Option<&str>,
 ) -> Result<Vec<Task>> {
-    // Build dynamic query based on filters
-    let mut query = String::from(
-        "SELECT id, title, description, priority, status, labels, created_by, assigned_to, due_date, created_at, updated_at FROM tasks WHERE 1=1"
-    );
-    
-    if status.is_some() {
-        query.push_str(" AND status = ?");
-    }
-    if priority.is_some() {
-        query.push_str(" AND priority = ?");
-    }
-    if assigned_to.is_some() {
-        query.push_str(" AND assigned_to = ?");
-    }
-    query.push_str(" ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 WHEN 'low' THEN 3 END, created_at DESC");
-
-    // For simplicity, fetch all and filter in memory
-    let tasks = sqlx::query_as!(
-        Task,
+    let tasks = sqlx::query_as::<_, Task>(
         r#"
         SELECT id, title, description, priority, status, labels, created_by, assigned_to, due_date, created_at, updated_at
         FROM tasks
@@ -258,38 +238,38 @@ pub async fn update_task(
     // Record status change in history if status changed
     if let Some(new_status) = &update.status {
         if new_status != &current.status {
-            sqlx::query!(
+            sqlx::query(
                 r#"
                 INSERT INTO task_history (task_id, from_status, to_status, changed_by, created_at)
                 VALUES (?, ?, ?, ?, ?)
-                "#,
-                id,
-                current.status,
-                new_status,
-                changed_by,
-                now
+                "#
             )
+            .bind(id)
+            .bind(&current.status)
+            .bind(new_status)
+            .bind(changed_by)
+            .bind(now)
             .execute(pool)
             .await?;
         }
     }
     
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE tasks
         SET title = ?, description = ?, priority = ?, status = ?, labels = ?, assigned_to = ?, due_date = ?, updated_at = ?
         WHERE id = ?
-        "#,
-        title,
-        description,
-        priority,
-        status,
-        labels,
-        assigned_to,
-        due_date,
-        now,
-        id
+        "#
     )
+    .bind(title)
+    .bind(description)
+    .bind(priority)
+    .bind(status)
+    .bind(&labels)
+    .bind(assigned_to)
+    .bind(due_date)
+    .bind(now)
+    .bind(id)
     .execute(pool)
     .await?;
     
@@ -297,7 +277,8 @@ pub async fn update_task(
 }
 
 pub async fn delete_task(pool: &SqlitePool, id: i64) -> Result<bool> {
-    let result = sqlx::query!("DELETE FROM tasks WHERE id = ?", id)
+    let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
+        .bind(id)
         .execute(pool)
         .await?;
     
@@ -311,16 +292,16 @@ pub async fn delete_task(pool: &SqlitePool, id: i64) -> Result<bool> {
 pub async fn add_comment(pool: &SqlitePool, task_id: i64, comment: &CreateComment) -> Result<TaskComment> {
     let now = chrono::Utc::now().timestamp();
     
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO task_comments (task_id, author, content, created_at)
         VALUES (?, ?, ?, ?)
-        "#,
-        task_id,
-        comment.author,
-        comment.content,
-        now
+        "#
     )
+    .bind(task_id)
+    .bind(&comment.author)
+    .bind(&comment.content)
+    .bind(now)
     .execute(pool)
     .await?;
 
@@ -336,16 +317,15 @@ pub async fn add_comment(pool: &SqlitePool, task_id: i64, comment: &CreateCommen
 }
 
 pub async fn get_task_comments(pool: &SqlitePool, task_id: i64) -> Result<Vec<TaskComment>> {
-    let comments = sqlx::query_as!(
-        TaskComment,
+    let comments = sqlx::query_as::<_, TaskComment>(
         r#"
         SELECT id, task_id, author, content, created_at
         FROM task_comments
         WHERE task_id = ?
         ORDER BY created_at ASC
-        "#,
-        task_id
+        "#
     )
+    .bind(task_id)
     .fetch_all(pool)
     .await?;
     
@@ -357,16 +337,15 @@ pub async fn get_task_comments(pool: &SqlitePool, task_id: i64) -> Result<Vec<Ta
 // ============================================================================
 
 pub async fn get_task_history(pool: &SqlitePool, task_id: i64) -> Result<Vec<TaskHistory>> {
-    let history = sqlx::query_as!(
-        TaskHistory,
+    let history = sqlx::query_as::<_, TaskHistory>(
         r#"
         SELECT id, task_id, from_status, to_status, changed_by, created_at
         FROM task_history
         WHERE task_id = ?
         ORDER BY created_at DESC
-        "#,
-        task_id
+        "#
     )
+    .bind(task_id)
     .fetch_all(pool)
     .await?;
     
@@ -381,22 +360,21 @@ pub async fn upsert_session(pool: &SqlitePool, session: &CreateSession) -> Resul
     let now = chrono::Utc::now().timestamp();
     
     // Try to find existing session
-    let existing = sqlx::query_as!(
-        Session,
+    let existing = sqlx::query_as::<_, Session>(
         r#"
         SELECT id, session_key, title, session_type, model, input_tokens, output_tokens, 
                cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at, ended_at
         FROM sessions
         WHERE session_key = ?
-        "#,
-        session.session_key
+        "#
     )
+    .bind(&session.session_key)
     .fetch_optional(pool)
     .await?;
     
     if let Some(existing) = existing {
         // Update existing
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE sessions
             SET title = COALESCE(?, title),
@@ -407,41 +385,41 @@ pub async fn upsert_session(pool: &SqlitePool, session: &CreateSession) -> Resul
                 cache_write_tokens = cache_write_tokens + ?,
                 cost_usd = cost_usd + ?
             WHERE id = ?
-            "#,
-            session.title,
-            session.model,
-            session.input_tokens,
-            session.output_tokens,
-            session.cache_read_tokens,
-            session.cache_write_tokens,
-            session.cost_usd,
-            existing.id
+            "#
         )
+        .bind(&session.title)
+        .bind(&session.model)
+        .bind(session.input_tokens)
+        .bind(session.output_tokens)
+        .bind(session.cache_read_tokens)
+        .bind(session.cache_write_tokens)
+        .bind(session.cost_usd)
+        .bind(existing.id)
         .execute(pool)
         .await?;
         
         get_session(pool, existing.id).await.map(|o| o.unwrap())
     } else {
         // Insert new
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             INSERT INTO sessions (session_key, title, session_type, model, input_tokens, output_tokens, 
                                   cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-            session.session_key,
-            session.title,
-            session.session_type,
-            session.model,
-            session.input_tokens,
-            session.output_tokens,
-            session.cache_read_tokens,
-            session.cache_write_tokens,
-            session.cost_usd,
-            session.task_id,
-            session.parent_session_id,
-            now
+            "#
         )
+        .bind(&session.session_key)
+        .bind(&session.title)
+        .bind(&session.session_type)
+        .bind(&session.model)
+        .bind(session.input_tokens)
+        .bind(session.output_tokens)
+        .bind(session.cache_read_tokens)
+        .bind(session.cache_write_tokens)
+        .bind(session.cost_usd)
+        .bind(session.task_id)
+        .bind(session.parent_session_id)
+        .bind(now)
         .execute(pool)
         .await?;
 
@@ -467,16 +445,15 @@ pub async fn upsert_session(pool: &SqlitePool, session: &CreateSession) -> Resul
 }
 
 pub async fn get_session(pool: &SqlitePool, id: i64) -> Result<Option<Session>> {
-    let session = sqlx::query_as!(
-        Session,
+    let session = sqlx::query_as::<_, Session>(
         r#"
         SELECT id, session_key, title, session_type, model, input_tokens, output_tokens, 
                cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at, ended_at
         FROM sessions
         WHERE id = ?
-        "#,
-        id
+        "#
     )
+    .bind(id)
     .fetch_optional(pool)
     .await?;
     
@@ -490,8 +467,7 @@ pub async fn list_sessions(
     offset: i64,
 ) -> Result<Vec<Session>> {
     let sessions = if let Some(st) = session_type {
-        sqlx::query_as!(
-            Session,
+        sqlx::query_as::<_, Session>(
             r#"
             SELECT id, session_key, title, session_type, model, input_tokens, output_tokens, 
                    cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at, ended_at
@@ -499,26 +475,25 @@ pub async fn list_sessions(
             WHERE session_type = ?
             ORDER BY started_at DESC
             LIMIT ? OFFSET ?
-            "#,
-            st,
-            limit,
-            offset
+            "#
         )
+        .bind(st)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await?
     } else {
-        sqlx::query_as!(
-            Session,
+        sqlx::query_as::<_, Session>(
             r#"
             SELECT id, session_key, title, session_type, model, input_tokens, output_tokens, 
                    cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at, ended_at
             FROM sessions
             ORDER BY started_at DESC
             LIMIT ? OFFSET ?
-            "#,
-            limit,
-            offset
+            "#
         )
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await?
     };
@@ -534,7 +509,7 @@ pub async fn sync_cron_job(pool: &SqlitePool, job: &SyncCronJob) -> Result<CronJ
     let now = chrono::Utc::now().timestamp();
     let enabled = if job.enabled { 1i64 } else { 0i64 };
     
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO cron_jobs (job_id, name, schedule, enabled, last_status, last_run_at, next_run_at, consecutive_errors, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -547,29 +522,28 @@ pub async fn sync_cron_job(pool: &SqlitePool, job: &SyncCronJob) -> Result<CronJ
             next_run_at = excluded.next_run_at,
             consecutive_errors = excluded.consecutive_errors,
             updated_at = excluded.updated_at
-        "#,
-        job.job_id,
-        job.name,
-        job.schedule,
-        enabled,
-        job.last_status,
-        job.last_run_at,
-        job.next_run_at,
-        job.consecutive_errors,
-        now
+        "#
     )
+    .bind(&job.job_id)
+    .bind(&job.name)
+    .bind(&job.schedule)
+    .bind(enabled)
+    .bind(&job.last_status)
+    .bind(job.last_run_at)
+    .bind(job.next_run_at)
+    .bind(job.consecutive_errors)
+    .bind(now)
     .execute(pool)
     .await?;
     
-    let cron = sqlx::query_as!(
-        CronJob,
+    let cron = sqlx::query_as::<_, CronJob>(
         r#"
         SELECT id, job_id, name, schedule, enabled, last_status, last_run_at, next_run_at, consecutive_errors, updated_at
         FROM cron_jobs
         WHERE job_id = ?
-        "#,
-        job.job_id
+        "#
     )
+    .bind(&job.job_id)
     .fetch_one(pool)
     .await?;
     
@@ -577,8 +551,7 @@ pub async fn sync_cron_job(pool: &SqlitePool, job: &SyncCronJob) -> Result<CronJ
 }
 
 pub async fn list_cron_jobs(pool: &SqlitePool) -> Result<Vec<CronJob>> {
-    let jobs = sqlx::query_as!(
-        CronJob,
+    let jobs = sqlx::query_as::<_, CronJob>(
         r#"
         SELECT id, job_id, name, schedule, enabled, last_status, last_run_at, next_run_at, consecutive_errors, updated_at
         FROM cron_jobs
@@ -596,7 +569,7 @@ pub async fn list_cron_jobs(pool: &SqlitePool) -> Result<Vec<CronJob>> {
 // ============================================================================
 
 pub async fn report_usage(pool: &SqlitePool, usage: &ReportUsage) -> Result<UsageDaily> {
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO usage_daily (date, model, input_tokens, output_tokens, cost_usd)
         VALUES (?, ?, ?, ?, ?)
@@ -604,26 +577,25 @@ pub async fn report_usage(pool: &SqlitePool, usage: &ReportUsage) -> Result<Usag
             input_tokens = usage_daily.input_tokens + excluded.input_tokens,
             output_tokens = usage_daily.output_tokens + excluded.output_tokens,
             cost_usd = usage_daily.cost_usd + excluded.cost_usd
-        "#,
-        usage.date,
-        usage.model,
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cost_usd
+        "#
     )
+    .bind(&usage.date)
+    .bind(&usage.model)
+    .bind(usage.input_tokens)
+    .bind(usage.output_tokens)
+    .bind(usage.cost_usd)
     .execute(pool)
     .await?;
     
-    let record = sqlx::query_as!(
-        UsageDaily,
+    let record = sqlx::query_as::<_, UsageDaily>(
         r#"
         SELECT id, date, model, input_tokens, output_tokens, cost_usd
         FROM usage_daily
         WHERE date = ? AND model = ?
-        "#,
-        usage.date,
-        usage.model
+        "#
     )
+    .bind(&usage.date)
+    .bind(&usage.model)
     .fetch_one(pool)
     .await?;
     
@@ -639,7 +611,7 @@ pub async fn get_usage_stats(
     let end = end_date.unwrap_or("2099-12-31");
     
     // Get totals
-    let totals = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT 
             COALESCE(SUM(input_tokens), 0) as total_input,
@@ -647,15 +619,19 @@ pub async fn get_usage_stats(
             COALESCE(SUM(cost_usd), 0.0) as total_cost
         FROM usage_daily
         WHERE date >= ? AND date <= ?
-        "#,
-        start,
-        end
+        "#
     )
+    .bind(start)
+    .bind(end)
     .fetch_one(pool)
     .await?;
     
+    let total_input: i64 = row.get("total_input");
+    let total_output: i64 = row.get("total_output");
+    let total_cost: f64 = row.get("total_cost");
+    
     // Get by model
-    let by_model = sqlx::query!(
+    let rows = sqlx::query(
         r#"
         SELECT 
             model,
@@ -666,22 +642,24 @@ pub async fn get_usage_stats(
         WHERE date >= ? AND date <= ?
         GROUP BY model
         ORDER BY cost_usd DESC
-        "#,
-        start,
-        end
+        "#
     )
+    .bind(start)
+    .bind(end)
     .fetch_all(pool)
     .await?;
     
+    let by_model: Vec<ModelUsage> = rows.iter().map(|r| ModelUsage {
+        model: r.get("model"),
+        input_tokens: r.get::<i64, _>("input_tokens"),
+        output_tokens: r.get::<i64, _>("output_tokens"),
+        cost_usd: r.get::<f64, _>("cost_usd"),
+    }).collect();
+    
     Ok(UsageStats {
-        total_input_tokens: totals.total_input.unwrap_or(0),
-        total_output_tokens: totals.total_output.unwrap_or(0),
-        total_cost_usd: totals.total_cost.unwrap_or(0.0),
-        by_model: by_model.into_iter().map(|r| ModelUsage {
-            model: r.model,
-            input_tokens: r.input_tokens.unwrap_or(0),
-            output_tokens: r.output_tokens.unwrap_or(0),
-            cost_usd: r.cost_usd.unwrap_or(0.0),
-        }).collect(),
+        total_input_tokens: total_input,
+        total_output_tokens: total_output,
+        total_cost_usd: total_cost,
+        by_model,
     })
 }
