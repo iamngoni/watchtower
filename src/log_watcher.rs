@@ -14,7 +14,10 @@ use tokio::io::{AsyncBufReadExt, AsyncSeekExt, BufReader, SeekFrom};
 use tokio::sync::watch;
 use tracing::{debug, error, info, warn};
 
-const LOG_PATH: &str = "/home/iamngoni/.openclaw/logs/gateway.log";
+fn log_path() -> String {
+    std::env::var("OPENCLAW_LOG_PATH")
+        .unwrap_or_else(|_| "/home/iamngoni/.openclaw/logs/gateway.log".to_string())
+}
 const POLL_INTERVAL_MS: u64 = 1000;
 
 /// Session state tracking for computing durations
@@ -70,11 +73,11 @@ async fn run_log_watcher(
     broadcaster: Broadcaster,
     mut shutdown: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let log_path = PathBuf::from(LOG_PATH);
+    let log_file = PathBuf::from(log_path());
     
     // Wait for log file to exist
-    while !log_path.exists() {
-        info!("Waiting for OpenClaw log file at {}", LOG_PATH);
+    while !log_file.exists() {
+        info!("Waiting for OpenClaw log file at {}", log_path());
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         
         if *shutdown.borrow() {
@@ -82,9 +85,9 @@ async fn run_log_watcher(
         }
     }
     
-    info!("Starting log watcher for {}", LOG_PATH);
+    info!("Starting log watcher for {}", log_path());
     
-    let file = File::open(&log_path).await?;
+    let file = File::open(&log_file).await?;
     let mut reader = BufReader::new(file);
     
     // Seek to end of file to only process new lines
@@ -106,7 +109,7 @@ async fn run_log_watcher(
         match reader.read_line(&mut line).await {
             Ok(0) => {
                 // No new data, check if file was rotated
-                let current_size = tokio::fs::metadata(&log_path)
+                let current_size = tokio::fs::metadata(&log_file)
                     .await
                     .map(|m| m.len())
                     .unwrap_or(0);
@@ -114,7 +117,7 @@ async fn run_log_watcher(
                 if current_size < last_position {
                     // File was truncated/rotated, reopen
                     info!("Log file rotated, reopening");
-                    let file = File::open(&log_path).await?;
+                    let file = File::open(&log_file).await?;
                     reader = BufReader::new(file);
                     last_position = 0;
                 }
