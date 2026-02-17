@@ -1,8 +1,10 @@
 use crate::db;
+use crate::gateway_client::GatewayClient;
 use crate::models::*;
 use crate::sse::Broadcaster;
 use actix_web::{delete, get, patch, post, web, HttpRequest, HttpResponse, Responder};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use tracing::{error, info};
 
 /// Check API token authentication
@@ -893,6 +895,186 @@ pub async fn reset_database(
         }
         Err(e) => {
             error!("Failed to reset database: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+// ============================================================================
+// Gateway API (Proxy to OpenClaw Gateway)
+// ============================================================================
+
+/// Get gateway status
+#[get("/api/gateway/status")]
+pub async fn gateway_status(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    gateway: Option<web::Data<Arc<GatewayClient>>>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let Some(client) = gateway else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway client not available",
+            "connected": false
+        }));
+    };
+    
+    if !client.is_connected().await {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway not connected",
+            "connected": false
+        }));
+    }
+    
+    match client.get_status().await {
+        Ok(status) => HttpResponse::Ok().json(serde_json::json!({
+            "connected": true,
+            "status": status
+        })),
+        Err(e) => {
+            error!("Gateway status error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string(),
+                "connected": true
+            }))
+        }
+    }
+}
+
+/// List sessions from gateway
+#[get("/api/gateway/sessions")]
+pub async fn gateway_sessions(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    gateway: Option<web::Data<Arc<GatewayClient>>>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let Some(client) = gateway else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway client not available"
+        }));
+    };
+    
+    if !client.is_connected().await {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway not connected"
+        }));
+    }
+    
+    match client.list_sessions().await {
+        Ok(sessions) => HttpResponse::Ok().json(sessions),
+        Err(e) => {
+            error!("Gateway sessions error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+/// Get costs from gateway
+#[get("/api/gateway/costs")]
+pub async fn gateway_costs(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    gateway: Option<web::Data<Arc<GatewayClient>>>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let Some(client) = gateway else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway client not available"
+        }));
+    };
+    
+    if !client.is_connected().await {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway not connected"
+        }));
+    }
+    
+    match client.get_costs().await {
+        Ok(costs) => HttpResponse::Ok().json(costs),
+        Err(e) => {
+            error!("Gateway costs error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+/// List cron jobs from gateway
+#[get("/api/gateway/cron")]
+pub async fn gateway_cron(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    gateway: Option<web::Data<Arc<GatewayClient>>>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let Some(client) = gateway else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway client not available"
+        }));
+    };
+    
+    if !client.is_connected().await {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway not connected"
+        }));
+    };
+    
+    match client.list_cron_jobs().await {
+        Ok(jobs) => HttpResponse::Ok().json(jobs),
+        Err(e) => {
+            error!("Gateway cron error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+/// Run a cron job via gateway
+#[post("/api/gateway/cron/{job_id}/run")]
+pub async fn gateway_cron_run(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    gateway: Option<web::Data<Arc<GatewayClient>>>,
+    path: web::Path<String>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let job_id = path.into_inner();
+    
+    let Some(client) = gateway else {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway client not available"
+        }));
+    };
+    
+    if !client.is_connected().await {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+            "error": "Gateway not connected"
+        }));
+    }
+    
+    match client.run_cron_job(&job_id).await {
+        Ok(result) => {
+            info!(job_id = %job_id, "Cron job triggered via gateway");
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": "triggered",
+                "job_id": job_id,
+                "result": result
+            }))
+        }
+        Err(e) => {
+            error!("Gateway cron run error: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": e.to_string()
             }))

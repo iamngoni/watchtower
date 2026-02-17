@@ -1,4 +1,5 @@
 mod db;
+mod gateway_client;
 mod handlers;
 mod log_watcher;
 mod models;
@@ -9,7 +10,7 @@ mod web;
 use actix_files as fs;
 use actix_web::{middleware::Logger, web as aweb, App, HttpServer};
 use std::env;
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 use tracing_subscriber::FmtSubscriber;
 
 /// Application configuration
@@ -83,22 +84,46 @@ async fn main() -> anyhow::Result<()> {
     info!("Log watcher started");
 
     // Start session JSONL watcher (for tool results)
-    session_watcher::start_session_watcher(pool.clone(), broadcaster.clone(), shutdown_rx);
+    session_watcher::start_session_watcher(pool.clone(), broadcaster.clone(), shutdown_rx.clone());
     info!("Session watcher started");
+
+    // Start gateway client (optional - graceful degradation if it fails)
+    let gateway_client = match gateway_client::init_gateway_client(
+        pool.clone(),
+        broadcaster.clone(),
+        shutdown_rx,
+    ) {
+        Ok(client) => {
+            info!("Gateway client initialized");
+            Some(client)
+        }
+        Err(e) => {
+            warn!("Gateway client disabled: {}. Using log watcher as fallback.", e);
+            None
+        }
+    };
 
     // Clone for HTTP server
     let config_clone = config.clone();
     let pool_clone = pool.clone();
     let broadcaster_clone = broadcaster.clone();
+    let gateway_client_clone = gateway_client.clone();
 
     info!(bind = %format!("0.0.0.0:{}", config.port), "Starting HTTP server");
 
     // Start HTTP server
     HttpServer::new(move || {
-        App::new()
+        let mut app = App::new()
             .app_data(aweb::Data::new(pool_clone.clone()))
             .app_data(aweb::Data::new(config_clone.clone()))
-            .app_data(aweb::Data::new(broadcaster_clone.clone()))
+            .app_data(aweb::Data::new(broadcaster_clone.clone()));
+        
+        // Add gateway client if available
+        if let Some(ref client) = gateway_client_clone {
+            app = app.app_data(aweb::Data::new(client.clone()));
+        }
+        
+        app
             .wrap(Logger::new("%a %r %s %b %Dms"))
             // Health check
             .service(handlers::health_check)
@@ -137,6 +162,12 @@ async fn main() -> anyhow::Result<()> {
             // API routes - Admin
             .service(handlers::clear_events)
             .service(handlers::reset_database)
+            // API routes - Gateway (proxy to OpenClaw)
+            .service(handlers::gateway_status)
+            .service(handlers::gateway_sessions)
+            .service(handlers::gateway_costs)
+            .service(handlers::gateway_cron)
+            .service(handlers::gateway_cron_run)
             // Web UI routes
             .service(web::index)
             .service(web::feed_page)
