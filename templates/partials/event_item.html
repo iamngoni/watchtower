@@ -46,8 +46,30 @@
     let textClass = 'text-wt-accent-indigo';
     let renderStyle = 'default';
     
+    // Tool result events (must check before generic shell/file/etc)
+    if (eventType.includes('_result')) {
+        iconName = 'arrow-down-left';
+        bgClass = 'bg-wt-accent-green-light';
+        textClass = 'text-wt-accent-green';
+        renderStyle = 'result';
+        if (eventType.includes('shell')) {
+            iconName = 'terminal';
+            bgClass = 'bg-wt-accent-indigo-light';
+            textClass = 'text-wt-accent-indigo';
+        } else if (eventType.includes('file')) {
+            iconName = 'file-text';
+        } else if (eventType.includes('api')) {
+            iconName = 'globe';
+            bgClass = 'bg-wt-accent-orange-light';
+            textClass = 'text-wt-accent-orange';
+        } else if (eventType.includes('message')) {
+            iconName = 'message-circle';
+            bgClass = 'bg-wt-accent-blue-light';
+            textClass = 'text-wt-accent-blue';
+        }
+    }
     // Alert/Error events
-    if (eventType.includes('alert') || eventType.includes('error') || eventType.includes('fail')) {
+    else if (eventType.includes('alert') || eventType.includes('error') || eventType.includes('fail')) {
         iconName = 'alert-triangle';
         bgClass = 'bg-wt-accent-red-light';
         textClass = 'text-wt-accent-red';
@@ -123,6 +145,19 @@
     // Render detail content based on style
     if (detailContent && detail) {
         switch (renderStyle) {
+            case 'result':
+                // Tool result: command + output in code block
+                const lines = detail.split('\n');
+                const cmdLine = lines[0]?.startsWith('$ ') ? lines[0] : null;
+                const output = cmdLine ? lines.slice(1).join('\n').trim() : detail;
+                detailContent.innerHTML = `
+                    <div class="bg-wt-bg-page rounded-lg p-2.5 font-mono text-xs overflow-x-auto max-h-48 overflow-y-auto">
+                        ${cmdLine ? `<div class="text-wt-text-tertiary mb-1.5">${escapeHtml(cmdLine)}</div>` : ''}
+                        <code class="text-wt-text-secondary whitespace-pre-wrap break-all">${escapeHtml(output) || '<span class="text-wt-text-tertiary italic">(no output)</span>'}</code>
+                    </div>
+                `;
+                break;
+                
             case 'shell':
                 // Command in monospace code block
                 detailContent.innerHTML = `

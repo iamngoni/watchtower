@@ -2,6 +2,7 @@ mod db;
 mod handlers;
 mod log_watcher;
 mod models;
+mod session_watcher;
 mod sse;
 mod web;
 
@@ -78,8 +79,12 @@ async fn main() -> anyhow::Result<()> {
 
     // Start log watcher
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-    log_watcher::start_log_watcher(pool.clone(), broadcaster.clone(), shutdown_rx);
+    log_watcher::start_log_watcher(pool.clone(), broadcaster.clone(), shutdown_rx.clone());
     info!("Log watcher started");
+
+    // Start session JSONL watcher (for tool results)
+    session_watcher::start_session_watcher(pool.clone(), broadcaster.clone(), shutdown_rx);
+    info!("Session watcher started");
 
     // Clone for HTTP server
     let config_clone = config.clone();
