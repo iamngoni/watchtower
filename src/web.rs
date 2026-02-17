@@ -621,6 +621,12 @@ struct EventItemTemplate {
     event: Event,
 }
 
+/// Render an event as an HTML fragment (for SSE broadcasting)
+pub fn render_event_html(event: &Event) -> Option<String> {
+    let template = EventItemTemplate { event: event.clone() };
+    template.render().ok()
+}
+
 #[derive(Template)]
 #[template(path = "partials/task_card.html")]
 struct TaskCardTemplate {

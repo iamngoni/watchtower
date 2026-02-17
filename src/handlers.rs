@@ -89,8 +89,12 @@ pub async fn create_event(
     
     match db::insert_event(&pool, &body).await {
         Ok(event) => {
-            // Broadcast via SSE
-            broadcaster.broadcast("event", serde_json::to_value(&event).unwrap());
+            // Broadcast rendered HTML via SSE for HTMX
+            if let Some(html) = crate::web::render_event_html(&event) {
+                broadcaster.broadcast_html("event", html);
+            } else {
+                broadcaster.broadcast("event", serde_json::to_value(&event).unwrap());
+            }
             info!(event_type = %event.event_type, "Event created and broadcast");
             HttpResponse::Created().json(event)
         }

@@ -417,4 +417,7 @@ pub struct ModelUsage {
 pub struct SseMessage {
     pub event: String,
     pub data: serde_json::Value,
+    /// Raw HTML string to send instead of JSON-serialized data (for HTMX sse-swap)
+    #[serde(skip)]
+    pub raw_html: Option<String>,
 }

@@ -26,10 +26,22 @@ impl SseBroadcaster {
         let msg = SseMessage {
             event: event.to_string(),
             data,
+            raw_html: None,
         };
         // Ignore errors - means no subscribers
         let _ = self.sender.send(msg);
         debug!(event = %event, "Broadcast SSE message");
+    }
+
+    /// Broadcast a pre-rendered HTML fragment (for HTMX sse-swap)
+    pub fn broadcast_html(&self, event: &str, html: String) {
+        let msg = SseMessage {
+            event: event.to_string(),
+            data: serde_json::Value::Null,
+            raw_html: Some(html),
+        };
+        let _ = self.sender.send(msg);
+        debug!(event = %event, "Broadcast SSE HTML message");
     }
 
     /// Subscribe to the broadcast channel
@@ -63,11 +75,17 @@ impl Stream for SseClient {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(msg))) => {
-                let data = format!(
-                    "event: {}\ndata: {}\n\n",
-                    msg.event,
+                let payload = if let Some(html) = &msg.raw_html {
+                    html.clone()
+                } else {
                     serde_json::to_string(&msg.data).unwrap_or_else(|_| "{}".to_string())
-                );
+                };
+                // SSE spec: multi-line data needs each line prefixed with "data: "
+                let data_lines: String = payload.lines()
+                    .map(|line| format!("data: {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let data = format!("event: {}\n{}\n\n", msg.event, data_lines);
                 Poll::Ready(Some(Ok(Bytes::from(data))))
             }
             Poll::Ready(Some(Err(_))) => {

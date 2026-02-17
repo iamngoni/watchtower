@@ -144,7 +144,11 @@ async fn run_log_watcher(
                             // Check for duplicate before inserting
                             match db::insert_event_dedup(&pool, &event).await {
                                 Ok(Some(evt)) => {
-                                    broadcaster.broadcast("event", serde_json::to_value(&evt).unwrap());
+                                    if let Some(html) = crate::web::render_event_html(&evt) {
+                                        broadcaster.broadcast_html("event", html);
+                                    } else {
+                                        broadcaster.broadcast("event", serde_json::to_value(&evt).unwrap());
+                                    }
                                     debug!(event_type = %evt.event_type, "Log event broadcast");
                                 }
                                 Ok(None) => {
