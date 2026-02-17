@@ -15,8 +15,10 @@ use tokio::sync::watch;
 use tracing::{debug, error, info, warn};
 
 fn log_path() -> String {
-    std::env::var("OPENCLAW_LOG_PATH")
-        .unwrap_or_else(|_| "/home/iamngoni/.openclaw/logs/gateway.log".to_string())
+    std::env::var("OPENCLAW_LOG_PATH").unwrap_or_else(|_| {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+        format!("{}/.openclaw/logs/gateway.log", home)
+    })
 }
 const POLL_INTERVAL_MS: u64 = 1000;
 
