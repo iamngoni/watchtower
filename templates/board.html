@@ -250,6 +250,9 @@
                     updateColumnCounts();
                     // Handle empty column states
                     handleEmptyColumns();
+                    if (window.showToast) showToast(`Moved to ${newStatus.replace('_', ' ')}`, 'success');
+                } else {
+                    if (window.showToast) showToast('Failed to move task', 'error');
                 }
             }
         });
@@ -339,6 +342,7 @@
         e.preventDefault();
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData);
+        const targetStatus = data.initial_status || 'backlog';
         
         const response = await fetch('/api/tasks', {
             method: 'POST',
@@ -348,14 +352,34 @@
             body: JSON.stringify({
                 ...data,
                 labels: taskLabels,
-                status: data.initial_status || 'backlog',
+                status: targetStatus,
                 created_by: 'human'
             })
         });
         
         if (response.ok) {
+            const newTask = await response.json();
             closeCreateTaskModal();
-            // The SSE will broadcast task_created and we'll handle it below
+            if (window.showToast) showToast('Task created', 'success');
+            
+            // SSE fallback: if card doesn't appear in 1 second, fetch column partial
+            const taskId = newTask.id;
+            setTimeout(() => {
+                const existingCard = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+                if (!existingCard) {
+                    console.log('SSE fallback: fetching column partial for', targetStatus);
+                    htmx.ajax('GET', `/partials/tasks/${targetStatus}`, {
+                        target: `.kanban-column[data-status="${targetStatus}"]`,
+                        swap: 'innerHTML'
+                    }).then(() => {
+                        lucide.createIcons();
+                        updateColumnCounts();
+                        handleEmptyColumns();
+                    });
+                }
+            }, 1000);
+        } else {
+            if (window.showToast) showToast('Failed to create task', 'error');
         }
     });
 

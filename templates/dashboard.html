@@ -16,14 +16,31 @@
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
                 <p class="text-[11px] lg:text-sm font-medium text-wt-text-tertiary mb-1 lg:mb-2">Total Tasks</p>
                 <p class="font-display text-xl lg:text-3xl font-bold text-wt-text-primary">{{ total_tasks }}</p>
+                <div class="flex items-center gap-2 mt-1 text-[10px] lg:text-xs text-wt-text-tertiary">
+                    <span>{{ done_tasks }} done</span>
+                    <span>•</span>
+                    <span>{{ backlog_tasks }} backlog</span>
+                </div>
             </div>
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
                 <p class="text-[11px] lg:text-sm font-medium text-wt-text-tertiary mb-1 lg:mb-2">Active Now</p>
                 <p class="font-display text-xl lg:text-3xl font-bold text-wt-accent-indigo">{{ active_tasks }}</p>
+                <div class="flex items-center gap-2 mt-1 text-[10px] lg:text-xs text-wt-text-tertiary">
+                    <span>{{ pending_tasks }} todo</span>
+                    <span>•</span>
+                    <span class="{% if blocked_tasks_count > 0 %}text-wt-accent-orange{% endif %}">{{ blocked_tasks_count }} blocked</span>
+                </div>
             </div>
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
-                <p class="text-[11px] lg:text-sm font-medium text-wt-text-tertiary mb-1 lg:mb-2">Pending</p>
-                <p class="font-display text-xl lg:text-3xl font-bold text-wt-accent-orange">{{ pending_tasks }}</p>
+                <p class="text-[11px] lg:text-sm font-medium text-wt-text-tertiary mb-1 lg:mb-2">Cron Jobs</p>
+                <p class="font-display text-xl lg:text-3xl font-bold {% if error_cron_jobs > 0 %}text-wt-accent-red{% else %}text-wt-accent-green{% endif %}">{{ enabled_cron_jobs }}/{{ total_cron_jobs }}</p>
+                <div class="flex items-center gap-2 mt-1 text-[10px] lg:text-xs text-wt-text-tertiary">
+                    <span>{{ disabled_cron_jobs }} disabled</span>
+                    {% if error_cron_jobs > 0 %}
+                    <span>•</span>
+                    <span class="text-wt-accent-red">{{ error_cron_jobs }} errors</span>
+                    {% endif %}
+                </div>
             </div>
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
                 <p class="text-[11px] lg:text-sm font-medium text-wt-text-tertiary mb-1 lg:mb-2">Today's Cost</p>
@@ -106,29 +123,40 @@
                 <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-4 lg:p-5">
                     <h2 class="font-display text-sm lg:text-base font-bold text-wt-text-primary mb-3 lg:mb-4">Quick Links</h2>
                     <div class="grid grid-cols-2 gap-2 lg:gap-3">
-                        <a href="/feed" class="flex items-center gap-2 lg:gap-3 p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
-                            <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-indigo-light flex items-center justify-center">
-                                <i data-lucide="activity" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-indigo"></i>
+                        <a href="/feed" class="flex items-center justify-between p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
+                            <div class="flex items-center gap-2 lg:gap-3">
+                                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-indigo-light flex items-center justify-center">
+                                    <i data-lucide="activity" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-indigo"></i>
+                                </div>
+                                <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Feed</span>
                             </div>
-                            <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Feed</span>
+                            <span class="text-[10px] lg:text-xs font-medium text-wt-text-tertiary bg-wt-bg-card px-1.5 py-0.5 rounded">Live</span>
                         </a>
-                        <a href="/board" class="flex items-center gap-2 lg:gap-3 p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
-                            <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-blue-light flex items-center justify-center">
-                                <i data-lucide="columns-3" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-blue"></i>
+                        <a href="/board" class="flex items-center justify-between p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
+                            <div class="flex items-center gap-2 lg:gap-3">
+                                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-blue-light flex items-center justify-center">
+                                    <i data-lucide="columns-3" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-blue"></i>
+                                </div>
+                                <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Board</span>
                             </div>
-                            <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Board</span>
+                            <span class="text-[10px] lg:text-xs font-medium text-wt-text-tertiary bg-wt-bg-card px-1.5 py-0.5 rounded">{{ total_tasks }}</span>
                         </a>
-                        <a href="/costs" class="flex items-center gap-2 lg:gap-3 p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
-                            <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-green-light flex items-center justify-center">
-                                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-green"></i>
+                        <a href="/costs" class="flex items-center justify-between p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
+                            <div class="flex items-center gap-2 lg:gap-3">
+                                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-green-light flex items-center justify-center">
+                                    <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-green"></i>
+                                </div>
+                                <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Costs</span>
                             </div>
-                            <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Costs</span>
                         </a>
-                        <a href="/cron" class="flex items-center gap-2 lg:gap-3 p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
-                            <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-orange-light flex items-center justify-center">
-                                <i data-lucide="clock" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-orange"></i>
+                        <a href="/cron" class="flex items-center justify-between p-2.5 lg:p-3 rounded-xl bg-wt-bg-page hover:bg-wt-accent-indigo-light transition-colors group">
+                            <div class="flex items-center gap-2 lg:gap-3">
+                                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-wt-accent-orange-light flex items-center justify-center">
+                                    <i data-lucide="clock" class="w-3.5 h-3.5 lg:w-4 lg:h-4 text-wt-accent-orange"></i>
+                                </div>
+                                <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Cron</span>
                             </div>
-                            <span class="text-xs lg:text-sm font-medium text-wt-text-secondary group-hover:text-wt-accent-indigo">Cron</span>
+                            <span class="text-[10px] lg:text-xs font-medium {% if error_cron_jobs > 0 %}text-wt-accent-red bg-wt-accent-red-light{% else %}text-wt-text-tertiary bg-wt-bg-card{% endif %} px-1.5 py-0.5 rounded">{{ enabled_cron_jobs }}/{{ total_cron_jobs }}</span>
                         </a>
                     </div>
                 </div>

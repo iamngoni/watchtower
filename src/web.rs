@@ -77,10 +77,21 @@ fn require_web_auth(req: &HttpRequest, config: &crate::Config) -> Option<HttpRes
 struct DashboardTemplate {
     title: String,
     active_page: String,
+    // Task stats
     total_tasks: usize,
     active_tasks: usize,
     pending_tasks: usize,
+    backlog_tasks: usize,
+    blocked_tasks_count: usize,
+    done_tasks: usize,
+    // Cron stats
+    total_cron_jobs: usize,
+    enabled_cron_jobs: usize,
+    disabled_cron_jobs: usize,
+    error_cron_jobs: usize,
+    // Cost
     today_cost: f64,
+    // Lists
     recent_events: Vec<Event>,
     blocked_tasks: Vec<Task>,
     failed_cron_jobs: Vec<CronJob>,
@@ -153,6 +164,9 @@ pub async fn index(
     let total_tasks = all_tasks.len();
     let active_tasks = all_tasks.iter().filter(|t| t.status == "in_progress").count();
     let pending_tasks = all_tasks.iter().filter(|t| t.status == "todo").count();
+    let backlog_tasks = all_tasks.iter().filter(|t| t.status == "backlog").count();
+    let blocked_tasks_count = all_tasks.iter().filter(|t| t.status == "blocked").count();
+    let done_tasks = all_tasks.iter().filter(|t| t.status == "done").count();
     let blocked_tasks: Vec<Task> = all_tasks.iter().filter(|t| t.status == "blocked").cloned().collect();
     
     // Get today's cost
@@ -171,10 +185,14 @@ pub async fn index(
         .await
         .unwrap_or_default();
     
-    // Get cron jobs with errors
+    // Get cron jobs with stats
     let all_jobs = db::list_cron_jobs(&pool).await.unwrap_or_default();
+    let total_cron_jobs = all_jobs.len();
+    let enabled_cron_jobs = all_jobs.iter().filter(|j| j.enabled != 0).count();
+    let disabled_cron_jobs = total_cron_jobs - enabled_cron_jobs;
+    let error_cron_jobs = all_jobs.iter().filter(|j| j.consecutive_errors > 0 || j.last_status.as_deref() == Some("error")).count();
     let failed_cron_jobs: Vec<CronJob> = all_jobs.into_iter()
-        .filter(|j| j.consecutive_errors > 0 || j.last_status.as_deref() == Some("failed"))
+        .filter(|j| j.consecutive_errors > 0 || j.last_status.as_deref() == Some("error"))
         .collect();
     
     let template = DashboardTemplate {
@@ -183,6 +201,13 @@ pub async fn index(
         total_tasks,
         active_tasks,
         pending_tasks,
+        backlog_tasks,
+        blocked_tasks_count,
+        done_tasks,
+        total_cron_jobs,
+        enabled_cron_jobs,
+        disabled_cron_jobs,
+        error_cron_jobs,
         today_cost: stats.total_cost_usd,
         recent_events,
         blocked_tasks,
@@ -538,4 +563,15 @@ pub async fn task_detail_partial(
             HttpResponse::InternalServerError().body("Template error")
         }
     }
+}
+
+// ============================================================================
+// Favicon Redirect
+// ============================================================================
+
+#[get("/favicon.ico")]
+pub async fn favicon() -> impl Responder {
+    HttpResponse::PermanentRedirect()
+        .insert_header(("Location", "/static/favicon.svg"))
+        .finish()
 }

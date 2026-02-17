@@ -122,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
             .service(web::costs_page)
             .service(web::cron_page)
             .service(web::sessions_page)
+            .service(web::favicon)
             // HTMX partials
             .service(web::events_partial)
             .service(web::sessions_partial)

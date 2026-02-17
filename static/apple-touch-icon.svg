@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <rect width="180" height="180" fill="#0F0F14"/>
+  <g transform="translate(50, 50)">
+    <!-- Radar/Watchtower icon in indigo -->
+    <circle cx="40" cy="40" r="7.5" fill="#6366F1"/>
+    <path d="M40 15a25 25 0 0 1 25 25" stroke="#6366F1" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.9"/>
+    <path d="M40 5a35 35 0 0 1 35 35" stroke="#6366F1" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.6"/>
+    <path d="M40 25a15 15 0 0 1 15 15" stroke="#6366F1" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.75"/>
+    <!-- Tower base -->
+    <path d="M35 40v25M45 40v25M30 65h20" stroke="#6366F1" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
