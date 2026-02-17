@@ -159,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Signal shutdown to log watcher
     let _ = shutdown_tx.send(true);
-    
+
     info!("Watchtower shutdown complete");
     Ok(())
 }
