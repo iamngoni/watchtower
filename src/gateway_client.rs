@@ -788,6 +788,8 @@ pub fn init_gateway_client(
     let client = GatewayClient::new(config, pool, broadcaster);
     client.start(shutdown_rx);
 
+    let _ = GATEWAY_CLIENT.set(client.clone());
+
     Ok(client)
 }
 

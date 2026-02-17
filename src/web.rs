@@ -1,9 +1,149 @@
 use crate::db;
+use crate::gateway_client;
 use crate::models::*;
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use sqlx::SqlitePool;
-use tracing::error;
+use tracing::{error, warn};
+
+// ============================================================================
+// Gateway Data Converters
+// ============================================================================
+
+/// Convert gateway sessions JSON to our Session model
+fn gateway_sessions_to_models(data: &serde_json::Value) -> Vec<Session> {
+    let sessions = data.get("sessions").and_then(|v| v.as_array());
+    let Some(sessions) = sessions else { return vec![] };
+    
+    sessions.iter().enumerate().map(|(i, s)| {
+        let key = s.get("key").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+        let model = s.get("model").and_then(|v| v.as_str()).map(String::from);
+        let provider = s.get("modelProvider").and_then(|v| v.as_str()).unwrap_or("");
+        let display_model = model.as_ref().map(|m| {
+            if provider.is_empty() { m.clone() } else { format!("{}/{}", provider, m) }
+        });
+        
+        let kind = s.get("kind").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let session_type = if key.contains(":cron:") { "cron" }
+            else if key.contains(":subagent:") { "subagent" }
+            else if kind == "direct" { "main" }
+            else { "unknown" };
+        
+        let updated_at = s.get("updatedAt").and_then(|v| v.as_i64()).unwrap_or(0);
+        let input = s.get("inputTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let output = s.get("outputTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let total = s.get("totalTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let channel = s.get("channel").and_then(|v| v.as_str()).unwrap_or("");
+        
+        let title = s.get("displayName").and_then(|v| v.as_str())
+            .or_else(|| s.get("origin").and_then(|o| o.get("label")).and_then(|v| v.as_str()))
+            .map(String::from)
+            .or_else(|| Some(format!("{} ({})", key, channel)));
+        
+        Session {
+            id: (i + 1) as i64,
+            session_key: key,
+            title,
+            session_type: session_type.to_string(),
+            model: display_model,
+            input_tokens: input,
+            output_tokens: output,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            cost_usd: 0.0,
+            task_id: None,
+            parent_session_id: None,
+            started_at: updated_at / 1000,
+            ended_at: None,
+        }
+    }).collect()
+}
+
+/// Convert gateway cron JSON to our CronJob model
+fn gateway_cron_to_models(data: &serde_json::Value) -> Vec<CronJob> {
+    let jobs = data.get("jobs").and_then(|v| v.as_array());
+    let Some(jobs) = jobs else { return vec![] };
+    
+    jobs.iter().enumerate().map(|(i, j)| {
+        let state = j.get("state");
+        let schedule = j.get("schedule");
+        let schedule_str = schedule.and_then(|s| {
+            let kind = s.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+            match kind {
+                "cron" => s.get("expr").and_then(|v| v.as_str()).map(|e| {
+                    let tz = s.get("tz").and_then(|v| v.as_str()).unwrap_or("");
+                    if tz.is_empty() { e.to_string() } else { format!("{} ({})", e, tz) }
+                }),
+                "every" => s.get("everyMs").and_then(|v| v.as_u64()).map(|ms| {
+                    if ms >= 3_600_000 { format!("every {}h", ms / 3_600_000) }
+                    else if ms >= 60_000 { format!("every {}m", ms / 60_000) }
+                    else { format!("every {}s", ms / 1000) }
+                }),
+                "at" => s.get("at").and_then(|v| v.as_str()).map(|a| format!("at {}", a)),
+                _ => Some("?".to_string()),
+            }
+        }).unwrap_or_else(|| "?".to_string());
+        
+        CronJob {
+            id: (i + 1) as i64,
+            job_id: j.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            name: j.get("name").and_then(|v| v.as_str()).unwrap_or("Unnamed").to_string(),
+            schedule: schedule_str,
+            enabled: if j.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false) { 1 } else { 0 },
+            last_status: state.and_then(|s| s.get("lastStatus")).and_then(|v| v.as_str()).map(String::from),
+            last_run_at: state.and_then(|s| s.get("lastRunAtMs")).and_then(|v| v.as_i64()).map(|ms| ms / 1000),
+            next_run_at: state.and_then(|s| s.get("nextRunAtMs")).and_then(|v| v.as_i64()).map(|ms| ms / 1000),
+            consecutive_errors: state.and_then(|s| s.get("consecutiveErrors")).and_then(|v| v.as_i64()).unwrap_or(0),
+            updated_at: j.get("updatedAtMs").and_then(|v| v.as_i64()).unwrap_or(0) / 1000,
+        }
+    }).collect()
+}
+
+/// Extract today's cost from gateway cost data
+fn gateway_today_cost(data: &serde_json::Value) -> (f64, f64) {
+    let daily = data.get("daily").and_then(|v| v.as_array());
+    let Some(daily) = daily else { return (0.0, 0.0) };
+    
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let yesterday = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    
+    let today_cost = daily.iter()
+        .find(|d| d.get("date").and_then(|v| v.as_str()) == Some(&today))
+        .and_then(|d| d.get("totalCost").and_then(|v| v.as_f64()))
+        .unwrap_or(0.0);
+    
+    let yesterday_cost = daily.iter()
+        .find(|d| d.get("date").and_then(|v| v.as_str()) == Some(&yesterday))
+        .and_then(|d| d.get("totalCost").and_then(|v| v.as_f64()))
+        .unwrap_or(0.0);
+    
+    (today_cost, yesterday_cost)
+}
+
+/// Convert gateway cost data to UsageStats for costs page
+fn gateway_costs_to_stats(data: &serde_json::Value) -> UsageStats {
+    let daily = data.get("daily").and_then(|v| v.as_array());
+    let Some(daily) = daily else {
+        return UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] };
+    };
+    
+    let mut total_input: i64 = 0;
+    let mut total_output: i64 = 0;
+    let mut total_cost: f64 = 0.0;
+    
+    for day in daily {
+        total_input += day.get("input").and_then(|v| v.as_i64()).unwrap_or(0);
+        total_output += day.get("output").and_then(|v| v.as_i64()).unwrap_or(0);
+        total_cost += day.get("totalCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    }
+    
+    UsageStats {
+        total_input_tokens: total_input,
+        total_output_tokens: total_output,
+        total_cost_usd: total_cost,
+        by_model: vec![],
+    }
+}
 
 /// Check session cookie authentication for web UI
 fn check_web_auth(req: &HttpRequest, config: &crate::Config) -> bool {
@@ -200,6 +340,8 @@ pub async fn index(
     }
     
     // Get all tasks for stats
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    
     let all_tasks = db::list_tasks(&pool, None, None, None)
         .await
         .unwrap_or_default();
@@ -212,30 +354,25 @@ pub async fn index(
     let done_tasks = all_tasks.iter().filter(|t| t.status == "done").count();
     let blocked_tasks: Vec<Task> = all_tasks.iter().filter(|t| t.status == "blocked").cloned().collect();
     
-    // Get today's cost
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let yesterday = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    // Get today's cost - try gateway first, fall back to DB
+    let (today_cost_val, yesterday_cost_val) = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.get_costs().await {
+            Ok(data) => gateway_today_cost(&data),
+            Err(e) => {
+                warn!("Gateway costs unavailable: {}, falling back to DB", e);
+                (0.0, 0.0)
+            }
+        }
+    } else {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let yesterday = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+        let s = db::get_usage_stats(&pool, Some(&today), Some(&today)).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] });
+        let y = db::get_usage_stats(&pool, Some(&yesterday), Some(&yesterday)).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] });
+        (s.total_cost_usd, y.total_cost_usd)
+    };
     
-    let stats = db::get_usage_stats(&pool, Some(&today), Some(&today))
-        .await
-        .unwrap_or_else(|_| UsageStats {
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cost_usd: 0.0,
-            by_model: vec![],
-        });
-    
-    let yesterday_stats = db::get_usage_stats(&pool, Some(&yesterday), Some(&yesterday))
-        .await
-        .unwrap_or_else(|_| UsageStats {
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cost_usd: 0.0,
-            by_model: vec![],
-        });
-    
-    let cost_trend_up = stats.total_cost_usd > yesterday_stats.total_cost_usd && yesterday_stats.total_cost_usd > 0.0;
-    let cost_trend_down = stats.total_cost_usd < yesterday_stats.total_cost_usd && yesterday_stats.total_cost_usd > 0.0;
+    let cost_trend_up = today_cost_val > yesterday_cost_val && yesterday_cost_val > 0.0;
+    let cost_trend_down = today_cost_val < yesterday_cost_val && yesterday_cost_val > 0.0;
     
     // Get current in-progress task title
     let current_task_title = all_tasks.iter()
@@ -248,8 +385,18 @@ pub async fn index(
         .await
         .unwrap_or_default();
     
-    // Get cron jobs with stats
-    let all_jobs = db::list_cron_jobs(&pool).await.unwrap_or_default();
+    // Get cron jobs with stats - try gateway first
+    let all_jobs = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.list_cron_jobs().await {
+            Ok(data) => gateway_cron_to_models(&data),
+            Err(e) => {
+                warn!("Gateway cron unavailable: {}, falling back to DB", e);
+                db::list_cron_jobs(&pool).await.unwrap_or_default()
+            }
+        }
+    } else {
+        db::list_cron_jobs(&pool).await.unwrap_or_default()
+    };
     let total_cron_jobs = all_jobs.len();
     let enabled_cron_jobs = all_jobs.iter().filter(|j| j.enabled != 0).count();
     let disabled_cron_jobs = total_cron_jobs - enabled_cron_jobs;
@@ -265,18 +412,26 @@ pub async fn index(
         .unwrap_or(false);
     let last_activity = recent_events.first().map(|e| e.created_at);
     
-    // Get most recent active session
-    let sessions = db::list_sessions(&pool, None, 10, 0).await.unwrap_or_default();
-    let current_session = sessions.iter()
-        .find(|s| s.ended_at.is_none())
-        .map(|s| s.session_key.clone());
-    let current_model = sessions.iter()
-        .find(|s| s.ended_at.is_none())
-        .and_then(|s| s.model.clone());
+    // Get sessions from gateway or DB
+    let sessions = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.list_sessions().await {
+            Ok(data) => gateway_sessions_to_models(&data),
+            Err(e) => {
+                warn!("Gateway sessions unavailable: {}, falling back to DB", e);
+                db::list_sessions(&pool, None, 10, 0).await.unwrap_or_default()
+            }
+        }
+    } else {
+        db::list_sessions(&pool, None, 10, 0).await.unwrap_or_default()
+    };
+    
+    // Main session is the first one (most recently updated)
+    let current_session = sessions.first().map(|s| s.session_key.clone());
+    let current_model = sessions.first().and_then(|s| s.model.clone());
     
     // Get active sub-agents
     let active_subagents: Vec<Session> = sessions.iter()
-        .filter(|s| s.session_type.contains("sub") && s.ended_at.is_none())
+        .filter(|s| s.session_type.contains("sub"))
         .cloned()
         .collect();
     
@@ -305,7 +460,7 @@ pub async fn index(
         enabled_cron_jobs,
         disabled_cron_jobs,
         error_cron_jobs,
-        today_cost: stats.total_cost_usd,
+        today_cost: today_cost_val,
         cost_trend_up,
         cost_trend_down,
         current_task_title,
@@ -414,14 +569,17 @@ pub async fn costs_page(
         return resp;
     }
     
-    let stats = db::get_usage_stats(&pool, None, None)
-        .await
-        .unwrap_or_else(|_| UsageStats {
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            total_cost_usd: 0.0,
-            by_model: vec![],
-        });
+    let stats = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.get_costs().await {
+            Ok(data) => gateway_costs_to_stats(&data),
+            Err(e) => {
+                warn!("Gateway costs unavailable: {}", e);
+                db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] })
+            }
+        }
+    } else {
+        db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] })
+    };
     
     let template = CostsTemplate {
         title: "Usage & Costs".to_string(),
@@ -448,9 +606,17 @@ pub async fn cron_page(
         return resp;
     }
     
-    let jobs = db::list_cron_jobs(&pool)
-        .await
-        .unwrap_or_default();
+    let jobs = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.list_cron_jobs().await {
+            Ok(data) => gateway_cron_to_models(&data),
+            Err(e) => {
+                warn!("Gateway cron unavailable: {}", e);
+                db::list_cron_jobs(&pool).await.unwrap_or_default()
+            }
+        }
+    } else {
+        db::list_cron_jobs(&pool).await.unwrap_or_default()
+    };
     
     let template = CronTemplate {
         title: "Cron Jobs".to_string(),
@@ -477,9 +643,17 @@ pub async fn sessions_page(
         return resp;
     }
     
-    let sessions = db::list_sessions(&pool, None, 100, 0)
-        .await
-        .unwrap_or_default();
+    let sessions = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.list_sessions().await {
+            Ok(data) => gateway_sessions_to_models(&data),
+            Err(e) => {
+                warn!("Gateway sessions unavailable: {}", e);
+                db::list_sessions(&pool, None, 100, 0).await.unwrap_or_default()
+            }
+        }
+    } else {
+        db::list_sessions(&pool, None, 100, 0).await.unwrap_or_default()
+    };
     
     let template = SessionsTemplate {
         title: "Sessions".to_string(),
