@@ -69,6 +69,62 @@ pub async fn insert_event(pool: &SqlitePool, event: &CreateEvent) -> Result<Even
     })
 }
 
+/// Insert event with deduplication - returns None if duplicate found
+pub async fn insert_event_dedup(pool: &SqlitePool, event: &CreateEvent) -> Result<Option<Event>> {
+    let metadata = event.metadata.as_ref()
+        .map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string()))
+        .unwrap_or_else(|| "{}".to_string());
+    
+    let now = chrono::Utc::now().timestamp();
+    
+    // Check for duplicate within the last 5 seconds with same summary
+    let recent_threshold = now - 5;
+    let existing = sqlx::query(
+        r#"
+        SELECT id FROM events 
+        WHERE summary = ? AND created_at >= ?
+        LIMIT 1
+        "#
+    )
+    .bind(&event.summary)
+    .bind(recent_threshold)
+    .fetch_optional(pool)
+    .await?;
+    
+    if existing.is_some() {
+        return Ok(None); // Duplicate found
+    }
+    
+    let result = sqlx::query(
+        r#"
+        INSERT INTO events (event_type, summary, detail, session_id, task_id, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        "#
+    )
+    .bind(&event.event_type)
+    .bind(&event.summary)
+    .bind(&event.detail)
+    .bind(&event.session_id)
+    .bind(event.task_id)
+    .bind(&metadata)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    let id = result.last_insert_rowid();
+    
+    Ok(Some(Event {
+        id,
+        event_type: event.event_type.clone(),
+        summary: event.summary.clone(),
+        detail: event.detail.clone(),
+        session_id: event.session_id.clone(),
+        task_id: event.task_id,
+        metadata,
+        created_at: now,
+    }))
+}
+
 pub async fn list_events(
     pool: &SqlitePool,
     event_type: Option<&str>,

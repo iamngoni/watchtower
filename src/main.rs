@@ -2,7 +2,6 @@ mod db;
 mod handlers;
 mod log_watcher;
 mod models;
-mod service_health;
 mod sse;
 mod web;
 
