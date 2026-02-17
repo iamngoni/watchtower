@@ -11,7 +11,20 @@
                 <span class="text-xs font-semibold text-wt-accent-green">Live</span>
             </div>
         </div>
+        <!-- Auto-scroll Toggle -->
+        <button id="auto-scroll-toggle" onclick="toggleAutoScroll()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-wt-bg-card border border-wt-border-subtle text-xs font-medium text-wt-text-secondary hover:border-wt-border-default transition-colors">
+            <i data-lucide="arrow-down-to-line" class="w-3.5 h-3.5 auto-scroll-icon"></i>
+            <span class="auto-scroll-text">Auto-scroll</span>
+        </button>
     </header>
+
+    <!-- New Events Badge (hidden by default) -->
+    <div id="new-events-badge" class="hidden sticky top-0 z-20 px-4 lg:px-8 py-2 bg-wt-bg-sidebar/80 backdrop-blur-sm border-b border-wt-border-subtle">
+        <button onclick="scrollToTop()" class="flex items-center gap-2 mx-auto px-4 py-2 rounded-full bg-wt-accent-indigo text-white text-xs font-semibold hover:bg-wt-accent-indigo/90 transition-colors">
+            <i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>
+            <span id="new-events-count">0</span> new events ↑
+        </button>
+    </div>
 
     <!-- Search Bar - Full width on all screens -->
     <div class="px-4 lg:px-8 py-3 border-b border-wt-border-subtle bg-wt-bg-sidebar">
@@ -32,7 +45,7 @@
     </div>
 
     <!-- Events List (SSE connected) -->
-    <div class="flex-1 overflow-y-auto" hx-ext="sse" sse-connect="/events/stream">
+    <div id="events-scroll-container" class="flex-1 overflow-y-auto" hx-ext="sse" sse-connect="/events/stream">
         <div id="events-container" class="px-4 lg:px-8" sse-swap="event" hx-swap="afterbegin">
             {% if events.is_empty() %}
             <div class="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -101,6 +114,68 @@
 {% block scripts %}
 <script>
     formatAllTimestamps();
+    
+    // Auto-scroll state
+    let autoScrollEnabled = true;
+    let newEventsCount = 0;
+    const scrollContainer = document.getElementById('events-scroll-container');
+    const eventsContainer = document.getElementById('events-container');
+    const newEventsBadge = document.getElementById('new-events-badge');
+    const newEventsCountEl = document.getElementById('new-events-count');
+
+    // Toggle auto-scroll
+    function toggleAutoScroll() {
+        autoScrollEnabled = !autoScrollEnabled;
+        updateAutoScrollButton();
+        if (autoScrollEnabled) {
+            scrollToTop();
+            clearNewEventsBadge();
+        }
+    }
+
+    function updateAutoScrollButton() {
+        const btn = document.getElementById('auto-scroll-toggle');
+        const icon = btn.querySelector('.auto-scroll-icon');
+        const text = btn.querySelector('.auto-scroll-text');
+        
+        if (autoScrollEnabled) {
+            btn.classList.add('bg-wt-accent-indigo-light', 'text-wt-accent-indigo', 'border-wt-accent-indigo/30');
+            btn.classList.remove('bg-wt-bg-card', 'text-wt-text-secondary');
+            text.textContent = 'Auto-scroll ON';
+        } else {
+            btn.classList.remove('bg-wt-accent-indigo-light', 'text-wt-accent-indigo', 'border-wt-accent-indigo/30');
+            btn.classList.add('bg-wt-bg-card', 'text-wt-text-secondary');
+            text.textContent = 'Auto-scroll OFF';
+        }
+    }
+
+    function scrollToTop() {
+        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        clearNewEventsBadge();
+    }
+
+    function clearNewEventsBadge() {
+        newEventsCount = 0;
+        newEventsBadge.classList.add('hidden');
+    }
+
+    function showNewEventsBadge() {
+        newEventsCountEl.textContent = newEventsCount;
+        newEventsBadge.classList.remove('hidden');
+    }
+
+    // Detect manual scroll
+    scrollContainer.addEventListener('scroll', function() {
+        const isAtTop = scrollContainer.scrollTop < 50;
+        if (!isAtTop && autoScrollEnabled) {
+            // User scrolled away, pause auto-scroll
+            autoScrollEnabled = false;
+            updateAutoScrollButton();
+        } else if (isAtTop && !autoScrollEnabled) {
+            // User scrolled back to top
+            clearNewEventsBadge();
+        }
+    });
 
     // Re-initialize icons and timestamps when new events arrive
     document.body.addEventListener('htmx:afterSwap', function(evt) {
@@ -108,6 +183,17 @@
         formatAllTimestamps();
         // Re-apply current filter to new events
         applyFilter(currentFilter);
+        
+        // Handle auto-scroll and badge
+        if (autoScrollEnabled) {
+            scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            newEventsCount++;
+            showNewEventsBadge();
+        }
+        
+        // Group events after new ones arrive
+        groupRecentEvents();
     });
 
     // Filter functionality
@@ -176,5 +262,82 @@
             }
         });
     });
+
+    // Event grouping - group events within 2 seconds of each other
+    function groupRecentEvents() {
+        const events = Array.from(document.querySelectorAll('.event-item:not(.event-group):not(.grouped-event)'));
+        if (events.length < 2) return;
+        
+        let groups = [];
+        let currentGroup = [events[0]];
+        let currentTimestamp = parseInt(events[0]?.dataset?.timestampRaw || 0);
+        
+        for (let i = 1; i < events.length; i++) {
+            const timestamp = parseInt(events[i]?.dataset?.timestampRaw || 0);
+            const diff = Math.abs(currentTimestamp - timestamp);
+            
+            if (diff <= 2) {
+                currentGroup.push(events[i]);
+            } else {
+                if (currentGroup.length >= 3) {
+                    groups.push([...currentGroup]);
+                }
+                currentGroup = [events[i]];
+                currentTimestamp = timestamp;
+            }
+        }
+        
+        if (currentGroup.length >= 3) {
+            groups.push(currentGroup);
+        }
+        
+        // Create group wrappers
+        groups.forEach(group => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'event-group bg-wt-bg-card rounded-xl border border-wt-border-subtle mb-2';
+            
+            const header = document.createElement('button');
+            header.className = 'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-wt-bg-page/50 rounded-xl transition-colors';
+            header.innerHTML = `
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-wt-bg-page">
+                    <i data-lucide="layers" class="w-4 h-4 text-wt-text-tertiary"></i>
+                </div>
+                <span class="text-sm font-medium text-wt-text-secondary">${group.length} events</span>
+                <span class="text-xs text-wt-text-tertiary ml-auto">Click to expand</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-wt-text-tertiary group-chevron"></i>
+            `;
+            
+            const content = document.createElement('div');
+            content.className = 'hidden px-2 pb-2 grouped-events-content';
+            
+            // Move events into content
+            group.forEach(event => {
+                event.classList.add('grouped-event');
+                content.appendChild(event);
+            });
+            
+            header.addEventListener('click', function() {
+                content.classList.toggle('hidden');
+                const chevron = header.querySelector('.group-chevron');
+                chevron.style.transform = content.classList.contains('hidden') ? '' : 'rotate(180deg)';
+            });
+            
+            wrapper.appendChild(header);
+            wrapper.appendChild(content);
+            
+            // Insert wrapper at the position of first event
+            const firstEventParent = eventsContainer;
+            const firstEventIndex = Array.from(firstEventParent.children).indexOf(group[0]);
+            if (firstEventIndex >= 0 && firstEventParent.children[firstEventIndex]) {
+                firstEventParent.insertBefore(wrapper, firstEventParent.children[firstEventIndex]);
+            }
+            
+            lucide.createIcons({ nodes: wrapper.querySelectorAll('[data-lucide]') });
+        });
+    }
+
+    // Initialize
+    updateAutoScrollButton();
+    groupRecentEvents();
 </script>
 {% endblock %}

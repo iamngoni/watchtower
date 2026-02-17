@@ -96,7 +96,7 @@
         <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
             <div class="px-5 py-4 border-b border-wt-border-subtle">
                 <h3 class="font-display text-base font-bold text-wt-text-primary">Activity Timeline</h3>
-                <p class="text-xs text-wt-text-tertiary mt-1">Events from this session</p>
+                <p class="text-xs text-wt-text-tertiary mt-1">{{ events.len() }} events from this session</p>
             </div>
             
             {% if events.is_empty() %}
@@ -105,25 +105,42 @@
                 <p class="text-sm text-wt-text-secondary">No events recorded for this session</p>
             </div>
             {% else %}
-            <div class="divide-y divide-wt-border-subtle">
-                {% for event in events %}
-                <div class="flex gap-3 px-5 py-3">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-wt-accent-indigo-light">
-                        <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                            <span class="text-sm font-semibold text-wt-text-primary">{{ event.summary }}</span>
-                            <span class="text-xs text-wt-text-tertiary whitespace-nowrap" data-timestamp="{{ event.created_at }}"></span>
+            <!-- Vertical Timeline -->
+            <div class="p-5 lg:p-6">
+                <div class="relative">
+                    <!-- Timeline Line -->
+                    <div class="absolute left-[19px] top-4 bottom-4 w-0.5 bg-wt-border-subtle"></div>
+                    
+                    <!-- Timeline Events -->
+                    <div class="space-y-0">
+                        {% for event in events %}
+                        <div class="relative flex gap-4 pb-6 last:pb-0 timeline-event" data-event-type="{{ event.event_type }}">
+                            <!-- Timeline Dot -->
+                            <div class="relative z-10 flex-shrink-0">
+                                <div class="w-10 h-10 rounded-xl flex items-center justify-center timeline-dot bg-wt-accent-indigo-light">
+                                    <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo timeline-icon"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Event Content -->
+                            <div class="flex-1 min-w-0 pt-1">
+                                <!-- Timestamp -->
+                                <div class="text-[10px] text-wt-text-tertiary mb-1 font-mono" data-timestamp="{{ event.created_at }}"></div>
+                                
+                                <!-- Event Card -->
+                                <div class="bg-wt-bg-page rounded-lg p-3 timeline-card">
+                                    <p class="text-sm font-semibold text-wt-text-primary">{{ event.summary }}</p>
+                                    {% match event.detail %}
+                                    {% when Some with (detail) %}
+                                    <div class="mt-2 timeline-detail" data-detail="{{ detail }}" data-event-type="{{ event.event_type }}"></div>
+                                    {% when None %}
+                                    {% endmatch %}
+                                </div>
+                            </div>
                         </div>
-                        {% match event.detail %}
-                        {% when Some with (detail) %}
-                        <p class="text-xs text-wt-text-secondary mt-1 line-clamp-2">{{ detail }}</p>
-                        {% when None %}
-                        {% endmatch %}
+                        {% endfor %}
                     </div>
                 </div>
-                {% endfor %}
             </div>
             {% endif %}
         </div>
@@ -135,5 +152,78 @@
 <script>
     formatAllTimestamps();
     formatAllNumbers();
+    
+    // Style timeline events based on type
+    document.querySelectorAll('.timeline-event').forEach(event => {
+        const eventType = event.dataset.eventType || '';
+        const dot = event.querySelector('.timeline-dot');
+        const icon = event.querySelector('.timeline-icon');
+        const detail = event.querySelector('.timeline-detail');
+        const detailText = detail?.dataset?.detail || '';
+        
+        // Reset classes
+        dot.className = 'w-10 h-10 rounded-xl flex items-center justify-center timeline-dot';
+        icon.className = 'w-4 h-4 timeline-icon';
+        
+        let iconName = 'activity';
+        let bgClass = 'bg-wt-accent-indigo-light';
+        let textClass = 'text-wt-accent-indigo';
+        
+        // Determine styling based on event type
+        if (eventType.includes('alert') || eventType.includes('error') || eventType.includes('fail')) {
+            iconName = 'alert-triangle';
+            bgClass = 'bg-wt-accent-red-light';
+            textClass = 'text-wt-accent-red';
+        } else if (eventType.includes('shell') || eventType.includes('exec') || eventType.includes('command')) {
+            iconName = 'terminal';
+            bgClass = 'bg-wt-accent-indigo-light';
+            textClass = 'text-wt-accent-indigo';
+        } else if (eventType.includes('file') || eventType.includes('write') || eventType.includes('read')) {
+            iconName = 'file-edit';
+            bgClass = 'bg-wt-accent-green-light';
+            textClass = 'text-wt-accent-green';
+        } else if (eventType.includes('message') || eventType.includes('chat') || eventType.includes('telegram')) {
+            iconName = 'message-circle';
+            bgClass = 'bg-wt-accent-blue-light';
+            textClass = 'text-wt-accent-blue';
+        } else if (eventType.includes('cron')) {
+            iconName = 'clock';
+            bgClass = 'bg-wt-accent-orange-light';
+            textClass = 'text-wt-accent-orange';
+        } else if (eventType.includes('api') || eventType.includes('request') || eventType.includes('http')) {
+            iconName = 'globe';
+            bgClass = 'bg-wt-accent-orange-light';
+            textClass = 'text-wt-accent-orange';
+        } else if (eventType.includes('agent') || eventType.includes('subagent')) {
+            iconName = 'git-branch';
+            bgClass = 'bg-wt-accent-blue-light';
+            textClass = 'text-wt-accent-blue';
+        }
+        
+        dot.classList.add(bgClass);
+        icon.classList.add(textClass);
+        icon.setAttribute('data-lucide', iconName);
+        
+        // Render detail content
+        if (detail && detailText) {
+            if (eventType.includes('shell') || eventType.includes('exec') || eventType.includes('command')) {
+                detail.innerHTML = `<div class="bg-wt-bg-card rounded p-2 font-mono text-xs text-wt-accent-indigo overflow-x-auto"><code>${escapeHtml(detailText)}</code></div>`;
+            } else if (eventType.includes('file')) {
+                detail.innerHTML = `<div class="flex items-center gap-2 text-xs"><i data-lucide="file" class="w-3.5 h-3.5 ${textClass}"></i><code class="font-mono ${textClass}">${escapeHtml(detailText)}</code></div>`;
+            } else if (eventType.includes('message') || eventType.includes('chat')) {
+                detail.innerHTML = `<div class="bg-wt-accent-blue-light/50 rounded-lg px-3 py-2 text-xs text-wt-text-primary max-w-md">${escapeHtml(detailText)}</div>`;
+            } else {
+                detail.innerHTML = `<p class="text-xs text-wt-text-secondary">${escapeHtml(detailText)}</p>`;
+            }
+        }
+    });
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    lucide.createIcons();
 </script>
 {% endblock %}

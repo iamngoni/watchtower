@@ -1,10 +1,8 @@
 use crate::db;
 use crate::models::*;
-use crate::service_health::{HealthChecker, get_kompressor_stats};
 use crate::sse::Broadcaster;
 use actix_web::{delete, get, patch, post, web, HttpRequest, HttpResponse, Responder};
 use sqlx::SqlitePool;
-use std::sync::Arc;
 use tracing::{error, info};
 
 /// Check API token authentication
@@ -368,6 +366,32 @@ pub async fn get_task_history(
 }
 
 // ============================================================================
+// Task Events API (Activity linked to task)
+// ============================================================================
+
+#[get("/api/tasks/{id}/events")]
+pub async fn get_task_events(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    path: web::Path<i64>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let task_id = path.into_inner();
+    
+    match db::get_events_for_task(&pool, task_id).await {
+        Ok(events) => HttpResponse::Ok().json(events),
+        Err(e) => {
+            error!("Failed to get events for task {}: {}", task_id, e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+// ============================================================================
 // Sessions API
 // ============================================================================
 
@@ -657,33 +681,6 @@ pub async fn report_usage(
 }
 
 // ============================================================================
-// Service Health API
-// ============================================================================
-
-#[get("/api/services/health")]
-pub async fn services_health(
-    req: HttpRequest,
-    config: web::Data<crate::Config>,
-    health_checker: web::Data<Arc<HealthChecker>>,
-) -> impl Responder {
-    require_auth!(&req, config);
-    
-    let health = health_checker.get_health().await;
-    HttpResponse::Ok().json(health)
-}
-
-#[get("/api/kompressor/stats")]
-pub async fn kompressor_stats(
-    req: HttpRequest,
-    config: web::Data<crate::Config>,
-) -> impl Responder {
-    require_auth!(&req, config);
-    
-    let stats = get_kompressor_stats().await;
-    HttpResponse::Ok().json(stats)
-}
-
-// ============================================================================
 // Search API
 // ============================================================================
 
@@ -750,6 +747,94 @@ pub async fn get_daily_costs(
         Ok(costs) => HttpResponse::Ok().json(costs),
         Err(e) => {
             error!("Failed to get daily costs: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+// ============================================================================
+// Agent Status API (OpenClaw-focused)
+// ============================================================================
+
+#[derive(Debug, serde::Serialize)]
+pub struct AgentStatus {
+    pub is_active: bool,
+    pub current_session: Option<String>,
+    pub current_model: Option<String>,
+    pub last_activity: Option<i64>,
+    pub active_subagents: Vec<Session>,
+}
+
+#[get("/api/agent/status")]
+pub async fn get_agent_status(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    // Check for recent events (last 5 minutes)
+    let five_min_ago = chrono::Utc::now().timestamp() - 300;
+    let recent_events = db::list_events(&pool, None, 1, 0).await.unwrap_or_default();
+    
+    let is_active = recent_events.first()
+        .map(|e| e.created_at > five_min_ago)
+        .unwrap_or(false);
+    
+    let last_activity = recent_events.first().map(|e| e.created_at);
+    
+    // Get most recent active session
+    let sessions = db::list_sessions(&pool, None, 5, 0).await.unwrap_or_default();
+    let current_session = sessions.first()
+        .filter(|s| s.ended_at.is_none())
+        .map(|s| s.session_key.clone());
+    let current_model = sessions.first()
+        .filter(|s| s.ended_at.is_none())
+        .and_then(|s| s.model.clone());
+    
+    // Get active sub-agents (sessions with "subagent" in session_type that haven't ended)
+    let active_subagents: Vec<Session> = sessions.into_iter()
+        .filter(|s| s.session_type.contains("sub") && s.ended_at.is_none())
+        .collect();
+    
+    HttpResponse::Ok().json(AgentStatus {
+        is_active,
+        current_session,
+        current_model,
+        last_activity,
+        active_subagents,
+    })
+}
+
+// ============================================================================
+// Activity Summary API (OpenClaw-focused)
+// ============================================================================
+
+#[derive(Debug, serde::Serialize)]
+pub struct ActivitySummary {
+    pub shell_commands: i64,
+    pub file_ops: i64,
+    pub api_calls: i64,
+    pub messages: i64,
+    pub total_events: i64,
+}
+
+#[get("/api/activity/summary")]
+pub async fn get_activity_summary(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    
+    match db::get_activity_summary(&pool, &today).await {
+        Ok(summary) => HttpResponse::Ok().json(summary),
+        Err(e) => {
+            error!("Failed to get activity summary: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": e.to_string()
             }))

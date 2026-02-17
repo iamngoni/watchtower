@@ -1,0 +1,248 @@
+<!-- Swimlane View: Agent vs Human -->
+<div class="space-y-6">
+    <!-- Agent Tasks Row -->
+    <div>
+        <div class="flex items-center gap-2 mb-3 px-2">
+            <div class="w-8 h-8 rounded-lg bg-wt-accent-indigo-light flex items-center justify-center">
+                <i data-lucide="bot" class="w-4 h-4 text-wt-accent-indigo"></i>
+            </div>
+            <h3 class="font-display text-sm font-bold text-wt-text-primary">Agent Tasks</h3>
+            <span class="ml-auto text-xs text-wt-text-tertiary">{{ agent_backlog.len() + agent_todo.len() + agent_in_progress.len() + agent_blocked.len() + agent_in_review.len() + agent_done.len() }} total</span>
+        </div>
+        <div class="flex gap-4 overflow-x-auto pb-4">
+            <!-- Backlog -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">Backlog</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ agent_backlog.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="backlog" data-assignee="agent">
+                    {% if agent_backlog.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_backlog %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-indigo/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- To Do -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">To Do</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ agent_todo.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="todo" data-assignee="agent">
+                    {% if agent_todo.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_todo %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-indigo/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- In Progress -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">In Progress</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ agent_in_progress.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="in_progress" data-assignee="agent">
+                    {% if agent_in_progress.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_in_progress %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-indigo/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Blocked -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-accent-orange">Blocked</span>
+                    <span class="text-xs text-wt-accent-orange">{{ agent_blocked.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="blocked" data-assignee="agent">
+                    {% if agent_blocked.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_blocked %}
+                    <div class="bg-wt-accent-orange-light/30 rounded-lg p-2 cursor-pointer hover:border-wt-accent-orange/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- In Review -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">In Review</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ agent_in_review.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="in_review" data-assignee="agent">
+                    {% if agent_in_review.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_in_review %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-indigo/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Done -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-accent-green">Done</span>
+                    <span class="text-xs text-wt-accent-green">{{ agent_done.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="done" data-assignee="agent">
+                    {% if agent_done.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in agent_done %}
+                    <div class="bg-wt-accent-green-light/30 rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Human Tasks Row -->
+    <div>
+        <div class="flex items-center gap-2 mb-3 px-2">
+            <div class="w-8 h-8 rounded-lg bg-wt-accent-green-light flex items-center justify-center">
+                <i data-lucide="user" class="w-4 h-4 text-wt-accent-green"></i>
+            </div>
+            <h3 class="font-display text-sm font-bold text-wt-text-primary">Human Tasks</h3>
+            <span class="ml-auto text-xs text-wt-text-tertiary">{{ human_backlog.len() + human_todo.len() + human_in_progress.len() + human_blocked.len() + human_in_review.len() + human_done.len() }} total</span>
+        </div>
+        <div class="flex gap-4 overflow-x-auto pb-4">
+            <!-- Backlog -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">Backlog</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ human_backlog.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="backlog" data-assignee="human">
+                    {% if human_backlog.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_backlog %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- To Do -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">To Do</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ human_todo.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="todo" data-assignee="human">
+                    {% if human_todo.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_todo %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- In Progress -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">In Progress</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ human_in_progress.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="in_progress" data-assignee="human">
+                    {% if human_in_progress.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_in_progress %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Blocked -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-accent-orange">Blocked</span>
+                    <span class="text-xs text-wt-accent-orange">{{ human_blocked.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="blocked" data-assignee="human">
+                    {% if human_blocked.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_blocked %}
+                    <div class="bg-wt-accent-orange-light/30 rounded-lg p-2 cursor-pointer hover:border-wt-accent-orange/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- In Review -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-text-tertiary">In Review</span>
+                    <span class="text-xs text-wt-text-tertiary">{{ human_in_review.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="in_review" data-assignee="human">
+                    {% if human_in_review.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_in_review %}
+                    <div class="bg-wt-bg-page rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Done -->
+            <div class="w-40 lg:w-48 flex-shrink-0">
+                <div class="flex items-center justify-between pb-2">
+                    <span class="text-xs font-medium text-wt-accent-green">Done</span>
+                    <span class="text-xs text-wt-accent-green">{{ human_done.len() }}</span>
+                </div>
+                <div class="bg-wt-bg-card rounded-lg p-2 space-y-2 min-h-[80px] swimlane-column" data-status="done" data-assignee="human">
+                    {% if human_done.is_empty() %}
+                    <div class="text-center py-4 text-[10px] text-wt-text-tertiary">Empty</div>
+                    {% else %}
+                    {% for task in human_done %}
+                    <div class="bg-wt-accent-green-light/30 rounded-lg p-2 cursor-pointer hover:border-wt-accent-green/50 border border-transparent task-card-mini" onclick="openTaskDetail({{ task.id }})" data-task-id="{{ task.id }}">
+                        <p class="text-xs font-medium text-wt-text-primary line-clamp-2">{{ task.title }}</p>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+</script>

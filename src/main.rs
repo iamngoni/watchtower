@@ -9,7 +9,6 @@ mod web;
 use actix_files as fs;
 use actix_web::{middleware::Logger, web as aweb, App, HttpServer};
 use std::env;
-use std::sync::Arc;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -76,10 +75,6 @@ async fn main() -> anyhow::Result<()> {
     let broadcaster = sse::new_broadcaster();
     info!("SSE broadcaster initialized");
 
-    // Create health checker
-    let health_checker = Arc::new(service_health::HealthChecker::new());
-    info!("Health checker initialized");
-
     // Start log watcher
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     log_watcher::start_log_watcher(pool.clone(), broadcaster.clone(), shutdown_rx);
@@ -89,7 +84,6 @@ async fn main() -> anyhow::Result<()> {
     let config_clone = config.clone();
     let pool_clone = pool.clone();
     let broadcaster_clone = broadcaster.clone();
-    let health_checker_clone = health_checker.clone();
 
     info!(bind = %format!("0.0.0.0:{}", config.port), "Starting HTTP server");
 
@@ -99,7 +93,6 @@ async fn main() -> anyhow::Result<()> {
             .app_data(aweb::Data::new(pool_clone.clone()))
             .app_data(aweb::Data::new(config_clone.clone()))
             .app_data(aweb::Data::new(broadcaster_clone.clone()))
-            .app_data(aweb::Data::new(health_checker_clone.clone()))
             .wrap(Logger::new("%a %r %s %b %Dms"))
             // Health check
             .service(handlers::health_check)
@@ -117,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
             .service(handlers::add_task_comment)
             .service(handlers::get_task_comments)
             .service(handlers::get_task_history)
+            .service(handlers::get_task_events)
             // API routes - Sessions
             .service(handlers::list_sessions)
             .service(handlers::create_session)
@@ -129,11 +123,11 @@ async fn main() -> anyhow::Result<()> {
             // API routes - Usage
             .service(handlers::get_usage)
             .service(handlers::report_usage)
-            // API routes - Services health
-            .service(handlers::services_health)
-            .service(handlers::kompressor_stats)
+            // API routes - Search & Stats
             .service(handlers::search_api)
             .service(handlers::get_daily_costs)
+            .service(handlers::get_agent_status)
+            .service(handlers::get_activity_summary)
             // Web UI routes
             .service(web::index)
             .service(web::feed_page)
@@ -146,12 +140,11 @@ async fn main() -> anyhow::Result<()> {
             // HTMX partials
             .service(web::events_partial)
             .service(web::sessions_partial)
-            .service(web::task_detail_partial)  // More specific route first
+            .service(web::task_detail_partial)
             .service(web::tasks_partial)
-            .service(web::service_health_partial)
-            .service(web::kompressor_stats_partial)
             .service(web::costs_chart_partial)
             .service(web::cron_history_partial)
+            .service(web::board_swimlane_partial)
             // Static files
             .service(fs::Files::new("/static", "static").show_files_listing())
     })

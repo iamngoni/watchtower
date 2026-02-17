@@ -1,4 +1,4 @@
-<div class="flex gap-3 py-4 border-b border-wt-border-subtle event-item" data-event-type="{{ event.event_type }}">
+<div class="flex gap-3 py-4 border-b border-wt-border-subtle event-item" data-event-type="{{ event.event_type }}" data-timestamp-raw="{{ event.created_at }}">
     <!-- Icon -->
     <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 event-icon-wrap bg-wt-accent-indigo-light">
         <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo event-icon"></i>
@@ -8,24 +8,31 @@
     <div class="flex-1 min-w-0">
         <!-- Summary and timestamp: side by side on desktop, stacked on mobile -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
-            <span class="text-sm font-semibold text-wt-text-primary truncate">{{ event.summary }}</span>
+            <span class="text-sm font-semibold text-wt-text-primary event-summary">{{ event.summary }}</span>
             <span class="text-xs font-medium text-wt-text-tertiary whitespace-nowrap" data-timestamp="{{ event.created_at }}"></span>
         </div>
-        {% match event.detail %}
-        {% when Some with (detail) %}
-        <p class="text-xs text-wt-text-secondary mt-1 truncate">{{ detail }}</p>
-        {% when None %}
-        {% endmatch %}
+        
+        <!-- Rich Detail based on event type -->
+        <div class="event-detail mt-2">
+            {% match event.detail %}
+            {% when Some with (detail) %}
+            <div class="detail-content" data-detail="{{ detail }}"></div>
+            {% when None %}
+            {% endmatch %}
+        </div>
     </div>
 </div>
 
 <script>
 (function() {
-    // Style the event icon based on event type
+    // Style the event based on event type
     const eventItem = document.currentScript.previousElementSibling;
     const eventType = eventItem?.dataset?.eventType || '';
     const iconWrap = eventItem?.querySelector('.event-icon-wrap');
     const icon = eventItem?.querySelector('.event-icon');
+    const detailContent = eventItem?.querySelector('.detail-content');
+    const summary = eventItem?.querySelector('.event-summary');
+    const detail = detailContent?.dataset?.detail || '';
     
     if (!iconWrap || !icon) return;
     
@@ -33,44 +40,165 @@
     iconWrap.className = 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0';
     icon.className = 'w-4 h-4';
     
-    // Determine icon and colors based on event type
+    // Determine icon, colors, and rendering based on event type
     let iconName = 'activity';
     let bgClass = 'bg-wt-accent-indigo-light';
     let textClass = 'text-wt-accent-indigo';
+    let renderStyle = 'default';
     
+    // Alert/Error events
     if (eventType.includes('alert') || eventType.includes('error') || eventType.includes('fail')) {
         iconName = 'alert-triangle';
         bgClass = 'bg-wt-accent-red-light';
         textClass = 'text-wt-accent-red';
-    } else if (eventType.includes('file') || eventType.includes('write') || eventType.includes('create')) {
-        iconName = 'file-edit';
-        bgClass = 'bg-wt-accent-green-light';
-        textClass = 'text-wt-accent-green';
-    } else if (eventType.includes('shell') || eventType.includes('exec') || eventType.includes('command')) {
+        renderStyle = 'alert';
+        eventItem.classList.add('bg-wt-accent-red/5', 'rounded-lg', '-mx-2', 'px-2');
+    }
+    // Shell/Command events
+    else if (eventType.includes('shell') || eventType.includes('exec') || eventType.includes('command')) {
         iconName = 'terminal';
         bgClass = 'bg-wt-accent-indigo-light';
         textClass = 'text-wt-accent-indigo';
-    } else if (eventType.includes('api') || eventType.includes('request') || eventType.includes('http')) {
-        iconName = 'globe';
-        bgClass = 'bg-wt-accent-orange-light';
-        textClass = 'text-wt-accent-orange';
-    } else if (eventType.includes('task') || eventType.includes('kanban')) {
-        iconName = 'git-branch';
+        renderStyle = 'shell';
+    }
+    // File events
+    else if (eventType.includes('file') || eventType.includes('write') || eventType.includes('read') || eventType.includes('edit')) {
+        iconName = 'file-edit';
+        if (eventType.includes('create') || eventType.includes('write')) {
+            bgClass = 'bg-wt-accent-green-light';
+            textClass = 'text-wt-accent-green';
+        } else if (eventType.includes('edit') || eventType.includes('modify')) {
+            bgClass = 'bg-wt-accent-orange-light';
+            textClass = 'text-wt-accent-orange';
+        } else if (eventType.includes('delete') || eventType.includes('remove')) {
+            iconName = 'file-x';
+            bgClass = 'bg-wt-accent-red-light';
+            textClass = 'text-wt-accent-red';
+        } else {
+            bgClass = 'bg-wt-accent-green-light';
+            textClass = 'text-wt-accent-green';
+        }
+        renderStyle = 'file';
+    }
+    // Message events
+    else if (eventType.includes('message') || eventType.includes('chat') || eventType.includes('telegram') || eventType.includes('discord')) {
+        iconName = 'message-circle';
         bgClass = 'bg-wt-accent-blue-light';
         textClass = 'text-wt-accent-blue';
-    } else if (eventType.includes('cron')) {
+        renderStyle = 'message';
+    }
+    // Cron events
+    else if (eventType.includes('cron')) {
         iconName = 'clock';
         bgClass = 'bg-wt-accent-orange-light';
         textClass = 'text-wt-accent-orange';
+        renderStyle = 'cron';
+    }
+    // API/HTTP events
+    else if (eventType.includes('api') || eventType.includes('request') || eventType.includes('http')) {
+        iconName = 'globe';
+        bgClass = 'bg-wt-accent-orange-light';
+        textClass = 'text-wt-accent-orange';
+        renderStyle = 'api';
+    }
+    // Task/Kanban events
+    else if (eventType.includes('task') || eventType.includes('kanban')) {
+        iconName = 'check-square';
+        bgClass = 'bg-wt-accent-blue-light';
+        textClass = 'text-wt-accent-blue';
+        renderStyle = 'task';
+    }
+    // Agent/Sub-agent events
+    else if (eventType.includes('agent') || eventType.includes('subagent') || eventType.includes('sub_agent')) {
+        iconName = 'git-branch';
+        bgClass = 'bg-wt-accent-indigo-light';
+        textClass = 'text-wt-accent-indigo';
+        renderStyle = 'agent';
     }
     
     iconWrap.classList.add(bgClass);
     icon.classList.add(textClass);
     icon.setAttribute('data-lucide', iconName);
     
-    // Recreate this specific icon
+    // Render detail content based on style
+    if (detailContent && detail) {
+        switch (renderStyle) {
+            case 'shell':
+                // Command in monospace code block
+                detailContent.innerHTML = `
+                    <div class="bg-wt-bg-page rounded-lg p-2.5 font-mono text-xs text-wt-text-secondary overflow-x-auto">
+                        <code class="text-wt-accent-indigo">${escapeHtml(detail)}</code>
+                    </div>
+                `;
+                break;
+                
+            case 'file':
+                // File path with icon
+                detailContent.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs">
+                        <i data-lucide="file" class="w-3.5 h-3.5 ${textClass} flex-shrink-0"></i>
+                        <code class="font-mono ${textClass} truncate">${escapeHtml(detail)}</code>
+                    </div>
+                `;
+                break;
+                
+            case 'message':
+                // Chat bubble styling
+                detailContent.innerHTML = `
+                    <div class="bg-wt-accent-blue-light/50 rounded-xl rounded-tl-none px-3 py-2 text-xs text-wt-text-primary max-w-md">
+                        ${escapeHtml(detail)}
+                    </div>
+                `;
+                break;
+                
+            case 'cron':
+                // Cron job with clock
+                detailContent.innerHTML = `
+                    <div class="flex items-center gap-2 text-xs text-wt-text-secondary">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 text-wt-accent-orange flex-shrink-0"></i>
+                        <span>${escapeHtml(detail)}</span>
+                    </div>
+                `;
+                break;
+                
+            case 'agent':
+                // Sub-agent task with branch icon
+                detailContent.innerHTML = `
+                    <div class="flex items-start gap-2 text-xs text-wt-text-secondary">
+                        <i data-lucide="git-branch" class="w-3.5 h-3.5 text-wt-accent-indigo flex-shrink-0 mt-0.5"></i>
+                        <span class="line-clamp-2">${escapeHtml(detail)}</span>
+                    </div>
+                `;
+                break;
+                
+            case 'alert':
+                // Red highlighted
+                detailContent.innerHTML = `
+                    <div class="text-xs text-wt-accent-red font-medium">
+                        ${escapeHtml(detail)}
+                    </div>
+                `;
+                break;
+                
+            default:
+                // Default plain text
+                detailContent.innerHTML = `
+                    <p class="text-xs text-wt-text-secondary truncate">${escapeHtml(detail)}</p>
+                `;
+        }
+    } else if (detailContent) {
+        detailContent.remove();
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Recreate icons
     if (typeof lucide !== 'undefined') {
-        lucide.createIcons({ nodes: [icon] });
+        lucide.createIcons({ nodes: eventItem.querySelectorAll('[data-lucide]') });
     }
 })();
 </script>

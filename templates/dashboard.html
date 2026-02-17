@@ -11,6 +11,95 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
+        <!-- Agent Status Card (OpenClaw-focused) -->
+        <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center {% if is_agent_active %}bg-wt-accent-green-light{% else %}bg-wt-bg-page{% endif %}">
+                        <i data-lucide="bot" class="w-5 h-5 lg:w-6 lg:h-6 {% if is_agent_active %}text-wt-accent-green{% else %}text-wt-text-tertiary{% endif %}"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-display text-base lg:text-lg font-bold text-wt-text-primary">OpenClaw Agent</h2>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            {% if is_agent_active %}
+                            <div class="w-2 h-2 bg-wt-accent-green rounded-full animate-pulse"></div>
+                            <span class="text-xs font-semibold text-wt-accent-green">Active</span>
+                            {% else %}
+                            <div class="w-2 h-2 bg-wt-text-tertiary rounded-full"></div>
+                            <span class="text-xs text-wt-text-tertiary">Idle</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% match last_activity %}
+                {% when Some with (ts) %}
+                <div class="text-right">
+                    <p class="text-[10px] text-wt-text-tertiary">Last activity</p>
+                    <p class="text-xs font-medium text-wt-text-secondary" data-timestamp="{{ ts }}"></p>
+                </div>
+                {% when None %}
+                {% endmatch %}
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-0.5">Session</p>
+                    <p class="text-xs font-medium text-wt-text-primary truncate">
+                        {% match current_session %}
+                        {% when Some with (s) %}{{ s }}{% when None %}—{% endmatch %}
+                    </p>
+                </div>
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-0.5">Model</p>
+                    <p class="text-xs font-medium text-wt-text-primary truncate">
+                        {% match current_model %}
+                        {% when Some with (m) %}{{ m }}{% when None %}—{% endmatch %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Activity Summary -->
+        <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle mb-6">
+            <h3 class="text-sm font-bold text-wt-text-primary mb-3">Today's Activity</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                    <div class="w-8 h-8 mx-auto rounded-lg bg-wt-accent-indigo-light flex items-center justify-center mb-2">
+                        <i data-lucide="terminal" class="w-4 h-4 text-wt-accent-indigo"></i>
+                    </div>
+                    <p class="font-display text-lg font-bold text-wt-text-primary">{{ shell_commands }}</p>
+                    <p class="text-[10px] text-wt-text-tertiary">Shell</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                    <div class="w-8 h-8 mx-auto rounded-lg bg-wt-accent-green-light flex items-center justify-center mb-2">
+                        <i data-lucide="file-edit" class="w-4 h-4 text-wt-accent-green"></i>
+                    </div>
+                    <p class="font-display text-lg font-bold text-wt-text-primary">{{ file_ops }}</p>
+                    <p class="text-[10px] text-wt-text-tertiary">Files</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                    <div class="w-8 h-8 mx-auto rounded-lg bg-wt-accent-orange-light flex items-center justify-center mb-2">
+                        <i data-lucide="globe" class="w-4 h-4 text-wt-accent-orange"></i>
+                    </div>
+                    <p class="font-display text-lg font-bold text-wt-text-primary">{{ api_calls }}</p>
+                    <p class="text-[10px] text-wt-text-tertiary">API</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-lg p-3 text-center">
+                    <div class="w-8 h-8 mx-auto rounded-lg bg-wt-accent-blue-light flex items-center justify-center mb-2">
+                        <i data-lucide="message-circle" class="w-4 h-4 text-wt-accent-blue"></i>
+                    </div>
+                    <p class="font-display text-lg font-bold text-wt-text-primary">{{ messages }}</p>
+                    <p class="text-[10px] text-wt-text-tertiary">Messages</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-lg p-3 text-center col-span-2 sm:col-span-1">
+                    <div class="w-8 h-8 mx-auto rounded-lg bg-wt-bg-card flex items-center justify-center mb-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-wt-text-tertiary"></i>
+                    </div>
+                    <p class="font-display text-lg font-bold text-wt-text-primary">{{ total_events_today }}</p>
+                    <p class="text-[10px] text-wt-text-tertiary">Total</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Stat Cards - 2x2 on mobile, 4 columns on desktop -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6 lg:mb-8">
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
@@ -48,30 +137,76 @@
             </div>
         </div>
 
-        <!-- Service Health & Kompressor Row -->
+        <!-- Active Sub-agents & Recent Completions Row -->
         <div class="grid lg:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
-            <!-- Service Health Widget -->
-            <div hx-get="/partials/service-health" hx-trigger="load, every 30s" hx-swap="innerHTML">
-                <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5 animate-pulse">
-                    <div class="h-4 bg-wt-bg-page rounded w-32 mb-4"></div>
-                    <div class="space-y-2">
-                        <div class="h-3 bg-wt-bg-page rounded w-full"></div>
-                        <div class="h-3 bg-wt-bg-page rounded w-3/4"></div>
-                    </div>
+            <!-- Active Sub-agents -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-5 py-3 lg:py-4 border-b border-wt-border-subtle flex items-center gap-2">
+                    <i data-lucide="git-branch" class="w-4 h-4 text-wt-accent-blue"></i>
+                    <h2 class="font-display text-sm lg:text-base font-bold text-wt-text-primary">Active Sub-agents</h2>
+                    <span class="ml-auto w-6 h-6 rounded-full bg-wt-bg-page text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ active_subagents.len() }}</span>
                 </div>
+                {% if active_subagents.is_empty() %}
+                <div class="p-6 text-center">
+                    <i data-lucide="git-branch" class="w-8 h-8 text-wt-text-tertiary mx-auto mb-2 opacity-50"></i>
+                    <p class="text-xs text-wt-text-tertiary">No active sub-agents</p>
+                </div>
+                {% else %}
+                <div class="divide-y divide-wt-border-subtle">
+                    {% for session in active_subagents %}
+                    <a href="/sessions/{{ session.id }}" class="flex items-start gap-3 px-4 lg:px-5 py-2.5 lg:py-3 hover:bg-wt-bg-page transition-colors">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-wt-accent-blue-light">
+                            <i data-lucide="bot" class="w-3.5 h-3.5 text-wt-accent-blue"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs lg:text-sm font-medium text-wt-text-primary truncate">
+                                {% match session.title %}
+                                {% when Some with (t) %}{{ t }}{% when None %}{{ session.session_key }}{% endmatch %}
+                            </p>
+                            <p class="text-[10px] lg:text-xs text-wt-text-tertiary">
+                                {% match session.model %}
+                                {% when Some with (m) %}{{ m }}{% when None %}Unknown model{% endmatch %}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-1 text-wt-accent-green">
+                            <div class="w-1.5 h-1.5 bg-wt-accent-green rounded-full animate-pulse"></div>
+                            <span class="text-[10px] font-medium">Running</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
             
-            <!-- Kompressor Stats Widget -->
-            <div hx-get="/partials/kompressor-stats" hx-trigger="load, every 30s" hx-swap="innerHTML">
-                <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5 animate-pulse">
-                    <div class="h-4 bg-wt-bg-page rounded w-32 mb-4"></div>
-                    <div class="grid grid-cols-4 gap-3">
-                        <div class="h-10 bg-wt-bg-page rounded"></div>
-                        <div class="h-10 bg-wt-bg-page rounded"></div>
-                        <div class="h-10 bg-wt-bg-page rounded"></div>
-                        <div class="h-10 bg-wt-bg-page rounded"></div>
-                    </div>
+            <!-- Recent Completions -->
+            <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-4 lg:px-5 py-3 lg:py-4 border-b border-wt-border-subtle flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-wt-accent-green"></i>
+                    <h2 class="font-display text-sm lg:text-base font-bold text-wt-text-primary">Recent Completions</h2>
                 </div>
+                {% if recent_completions.is_empty() %}
+                <div class="p-6 text-center">
+                    <i data-lucide="check-circle" class="w-8 h-8 text-wt-text-tertiary mx-auto mb-2 opacity-50"></i>
+                    <p class="text-xs text-wt-text-tertiary">No recent completions</p>
+                </div>
+                {% else %}
+                <div class="divide-y divide-wt-border-subtle">
+                    {% for task in recent_completions %}
+                    <div class="flex items-start gap-3 px-4 lg:px-5 py-2.5 lg:py-3 cursor-pointer hover:bg-wt-bg-page transition-colors" onclick="openTaskDetail({{ task.id }})">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-wt-accent-green-light">
+                            <i data-lucide="check" class="w-3.5 h-3.5 text-wt-accent-green"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs lg:text-sm font-medium text-wt-text-primary truncate">{{ task.title }}</p>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-wt-accent-green-light text-wt-accent-green">{{ task.status }}</span>
+                                <span class="text-[10px] text-wt-text-tertiary" data-timestamp="{{ task.updated_at }}"></span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </div>
 

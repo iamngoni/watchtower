@@ -1,10 +1,8 @@
 use crate::db;
 use crate::models::*;
-use crate::service_health::{HealthChecker, ServicesHealth, get_kompressor_stats, KompressorStats};
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use sqlx::SqlitePool;
-use std::sync::Arc;
 use tracing::error;
 
 /// Check session cookie authentication for web UI
@@ -93,6 +91,21 @@ struct DashboardTemplate {
     error_cron_jobs: usize,
     // Cost
     today_cost: f64,
+    // Agent Status (OpenClaw-focused)
+    is_agent_active: bool,
+    current_session: Option<String>,
+    current_model: Option<String>,
+    last_activity: Option<i64>,
+    // Activity Summary
+    shell_commands: i64,
+    file_ops: i64,
+    api_calls: i64,
+    messages: i64,
+    total_events_today: i64,
+    // Active Sub-agents
+    active_subagents: Vec<Session>,
+    // Recent Completions
+    recent_completions: Vec<Task>,
     // Lists
     recent_events: Vec<Event>,
     blocked_tasks: Vec<Task>,
@@ -206,6 +219,40 @@ pub async fn index(
         .filter(|j| j.consecutive_errors > 0 || j.last_status.as_deref() == Some("error"))
         .collect();
     
+    // Agent Status (OpenClaw-focused)
+    let five_min_ago = chrono::Utc::now().timestamp() - 300;
+    let is_agent_active = recent_events.first()
+        .map(|e| e.created_at > five_min_ago)
+        .unwrap_or(false);
+    let last_activity = recent_events.first().map(|e| e.created_at);
+    
+    // Get most recent active session
+    let sessions = db::list_sessions(&pool, None, 10, 0).await.unwrap_or_default();
+    let current_session = sessions.iter()
+        .find(|s| s.ended_at.is_none())
+        .map(|s| s.session_key.clone());
+    let current_model = sessions.iter()
+        .find(|s| s.ended_at.is_none())
+        .and_then(|s| s.model.clone());
+    
+    // Get active sub-agents
+    let active_subagents: Vec<Session> = sessions.iter()
+        .filter(|s| s.session_type.contains("sub") && s.ended_at.is_none())
+        .cloned()
+        .collect();
+    
+    // Activity Summary
+    let activity = db::get_activity_summary(&pool, &today).await.unwrap_or_else(|_| db::ActivitySummary {
+        shell_commands: 0,
+        file_ops: 0,
+        api_calls: 0,
+        messages: 0,
+        total_events: 0,
+    });
+    
+    // Recent Completions
+    let recent_completions = db::get_recent_completions(&pool, 3).await.unwrap_or_default();
+    
     let template = DashboardTemplate {
         title: "Dashboard".to_string(),
         active_page: "dashboard".to_string(),
@@ -220,6 +267,17 @@ pub async fn index(
         disabled_cron_jobs,
         error_cron_jobs,
         today_cost: stats.total_cost_usd,
+        is_agent_active,
+        current_session,
+        current_model,
+        last_activity,
+        shell_commands: activity.shell_commands,
+        file_ops: activity.file_ops,
+        api_calls: activity.api_calls,
+        messages: activity.messages,
+        total_events_today: activity.total_events,
+        active_subagents,
+        recent_completions,
         recent_events,
         blocked_tasks,
         failed_cron_jobs,
@@ -462,6 +520,7 @@ struct TaskDetailTemplate {
     labels: Vec<String>,
     comments: Vec<TaskComment>,
     history: Vec<TaskHistory>,
+    events: Vec<Event>,
 }
 
 #[get("/partials/events")]
@@ -603,77 +662,18 @@ pub async fn task_detail_partial(
         .await
         .unwrap_or_default();
     
+    // Get events linked to this task
+    let events = db::get_events_for_task(&pool, task_id)
+        .await
+        .unwrap_or_default();
+    
     let template = TaskDetailTemplate {
         task,
         labels,
         comments,
         history,
+        events,
     };
-    
-    match template.render() {
-        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
-        Err(e) => {
-            error!("Template error: {}", e);
-            HttpResponse::InternalServerError().body("Template error")
-        }
-    }
-}
-
-// ============================================================================
-// Service Health Partial
-// ============================================================================
-
-#[derive(Template)]
-#[template(path = "partials/service_health.html")]
-struct ServiceHealthTemplate {
-    health: ServicesHealth,
-}
-
-#[get("/partials/service-health")]
-pub async fn service_health_partial(
-    req: HttpRequest,
-    config: web::Data<crate::Config>,
-    health_checker: web::Data<Arc<HealthChecker>>,
-) -> impl Responder {
-    if let Some(resp) = require_web_auth(&req, &config) {
-        return resp;
-    }
-    
-    let health = health_checker.get_health().await;
-    
-    let template = ServiceHealthTemplate { health };
-    
-    match template.render() {
-        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
-        Err(e) => {
-            error!("Template error: {}", e);
-            HttpResponse::InternalServerError().body("Template error")
-        }
-    }
-}
-
-// ============================================================================
-// Kompressor Stats Partial
-// ============================================================================
-
-#[derive(Template)]
-#[template(path = "partials/kompressor_stats.html")]
-struct KompressorStatsTemplate {
-    stats: KompressorStats,
-}
-
-#[get("/partials/kompressor-stats")]
-pub async fn kompressor_stats_partial(
-    req: HttpRequest,
-    config: web::Data<crate::Config>,
-) -> impl Responder {
-    if let Some(resp) = require_web_auth(&req, &config) {
-        return resp;
-    }
-    
-    let stats = get_kompressor_stats().await;
-    
-    let template = KompressorStatsTemplate { stats };
     
     match template.render() {
         Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
@@ -748,6 +748,75 @@ pub async fn cron_history_partial(
     let events = db::get_cron_run_history(&pool, &job_id, 5).await.unwrap_or_default();
     
     let template = CronHistoryTemplate { job_id, events };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Board Swimlane Partial (Assignee View)
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "partials/board_swimlane.html")]
+struct BoardSwimlaneTemplate {
+    agent_backlog: Vec<Task>,
+    agent_todo: Vec<Task>,
+    agent_in_progress: Vec<Task>,
+    agent_blocked: Vec<Task>,
+    agent_in_review: Vec<Task>,
+    agent_done: Vec<Task>,
+    human_backlog: Vec<Task>,
+    human_todo: Vec<Task>,
+    human_in_progress: Vec<Task>,
+    human_blocked: Vec<Task>,
+    human_in_review: Vec<Task>,
+    human_done: Vec<Task>,
+}
+
+#[get("/partials/board/swimlane")]
+pub async fn board_swimlane_partial(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let all_tasks = db::list_tasks(&pool, None, None, None)
+        .await
+        .unwrap_or_default();
+    
+    // Split by assignee
+    let agent_tasks: Vec<Task> = all_tasks.iter()
+        .filter(|t| t.assigned_to == "agent")
+        .cloned()
+        .collect();
+    let human_tasks: Vec<Task> = all_tasks.iter()
+        .filter(|t| t.assigned_to != "agent")
+        .cloned()
+        .collect();
+    
+    let template = BoardSwimlaneTemplate {
+        agent_backlog: agent_tasks.iter().filter(|t| t.status == "backlog").cloned().collect(),
+        agent_todo: agent_tasks.iter().filter(|t| t.status == "todo").cloned().collect(),
+        agent_in_progress: agent_tasks.iter().filter(|t| t.status == "in_progress").cloned().collect(),
+        agent_blocked: agent_tasks.iter().filter(|t| t.status == "blocked").cloned().collect(),
+        agent_in_review: agent_tasks.iter().filter(|t| t.status == "in_review").cloned().collect(),
+        agent_done: agent_tasks.iter().filter(|t| t.status == "done").cloned().collect(),
+        human_backlog: human_tasks.iter().filter(|t| t.status == "backlog").cloned().collect(),
+        human_todo: human_tasks.iter().filter(|t| t.status == "todo").cloned().collect(),
+        human_in_progress: human_tasks.iter().filter(|t| t.status == "in_progress").cloned().collect(),
+        human_blocked: human_tasks.iter().filter(|t| t.status == "blocked").cloned().collect(),
+        human_in_review: human_tasks.iter().filter(|t| t.status == "in_review").cloned().collect(),
+        human_done: human_tasks.iter().filter(|t| t.status == "done").cloned().collect(),
+    };
     
     match template.render() {
         Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),

@@ -844,3 +844,85 @@ pub async fn get_events_for_session(pool: &SqlitePool, session_id: &str) -> Resu
     
     Ok(events)
 }
+
+// ============================================================================
+// Events for Task
+// ============================================================================
+
+pub async fn get_events_for_task(pool: &SqlitePool, task_id: i64) -> Result<Vec<Event>> {
+    let events = sqlx::query_as::<_, Event>(
+        r#"
+        SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
+        FROM events
+        WHERE task_id = ?
+        ORDER BY created_at DESC
+        LIMIT 50
+        "#
+    )
+    .bind(task_id)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(events)
+}
+
+// ============================================================================
+// Activity Summary (OpenClaw-focused)
+// ============================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ActivitySummary {
+    pub shell_commands: i64,
+    pub file_ops: i64,
+    pub api_calls: i64,
+    pub messages: i64,
+    pub total_events: i64,
+}
+
+pub async fn get_activity_summary(pool: &SqlitePool, date: &str) -> Result<ActivitySummary> {
+    let row = sqlx::query(
+        r#"
+        SELECT 
+            COALESCE(SUM(CASE WHEN event_type LIKE '%shell%' OR event_type LIKE '%exec%' OR event_type LIKE '%command%' THEN 1 ELSE 0 END), 0) as shell_commands,
+            COALESCE(SUM(CASE WHEN event_type LIKE '%file%' OR event_type LIKE '%write%' OR event_type LIKE '%read%' THEN 1 ELSE 0 END), 0) as file_ops,
+            COALESCE(SUM(CASE WHEN event_type LIKE '%api%' OR event_type LIKE '%http%' OR event_type LIKE '%request%' THEN 1 ELSE 0 END), 0) as api_calls,
+            COALESCE(SUM(CASE WHEN event_type LIKE '%message%' OR event_type LIKE '%chat%' OR event_type LIKE '%telegram%' THEN 1 ELSE 0 END), 0) as messages,
+            COUNT(*) as total_events
+        FROM events
+        WHERE date(created_at, 'unixepoch') = ?
+        "#
+    )
+    .bind(date)
+    .fetch_one(pool)
+    .await?;
+    
+    Ok(ActivitySummary {
+        shell_commands: row.get("shell_commands"),
+        file_ops: row.get("file_ops"),
+        api_calls: row.get("api_calls"),
+        messages: row.get("messages"),
+        total_events: row.get("total_events"),
+    })
+}
+
+// ============================================================================
+// Recent Completions (tasks moved to done/in_review)
+// ============================================================================
+
+pub async fn get_recent_completions(pool: &SqlitePool, limit: i32) -> Result<Vec<Task>> {
+    let tasks = sqlx::query_as::<_, Task>(
+        r#"
+        SELECT t.id, t.title, t.description, t.priority, t.status, t.labels, t.created_by, t.assigned_to, t.due_date, t.created_at, t.updated_at
+        FROM tasks t
+        INNER JOIN task_history h ON t.id = h.task_id
+        WHERE h.to_status IN ('done', 'in_review')
+        ORDER BY h.created_at DESC
+        LIMIT ?
+        "#
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(tasks)
+}

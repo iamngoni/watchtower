@@ -159,6 +159,15 @@
                     </a>
                 </nav>
             </div>
+            
+            <!-- Sidebar Footer -->
+            <div class="mt-auto px-4 pb-6">
+                <button onclick="openKeyboardShortcuts()" class="flex items-center gap-2 px-4 py-2 rounded-xl text-wt-text-tertiary hover:bg-wt-bg-card transition-colors w-full">
+                    <i data-lucide="keyboard" class="w-4 h-4"></i>
+                    <span class="text-xs font-medium">Keyboard shortcuts</span>
+                    <kbd class="ml-auto px-1.5 py-0.5 text-[10px] font-medium bg-wt-bg-page rounded">?</kbd>
+                </button>
+            </div>
         </aside>
 
         <!-- Mobile Sidebar Overlay -->
@@ -436,14 +445,50 @@
             document.body.style.overflow = '';
         }
         
-        // Keyboard shortcut Cmd+K / Ctrl+K
+        // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
+            // Don't trigger shortcuts when typing in inputs
+            const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+            
+            // Cmd+K / Ctrl+K - Search
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 openSearchModal();
+                return;
             }
+            
+            // Escape - Close modals
             if (e.key === 'Escape') {
                 closeSearchModal();
+                closeTaskDetail();
+                closeKeyboardShortcuts();
+                return;
+            }
+            
+            // Skip other shortcuts if typing
+            if (isTyping) return;
+            
+            // Number keys 1-5 to switch pages
+            if (e.key === '1') {
+                window.location.href = '/feed';
+            } else if (e.key === '2') {
+                window.location.href = '/board';
+            } else if (e.key === '3') {
+                window.location.href = '/costs';
+            } else if (e.key === '4') {
+                window.location.href = '/cron';
+            } else if (e.key === '5') {
+                window.location.href = '/sessions';
+            }
+            // N - New task (if on board page)
+            else if (e.key === 'n' || e.key === 'N') {
+                if (typeof openCreateTaskModal === 'function') {
+                    openCreateTaskModal();
+                }
+            }
+            // ? - Show keyboard shortcuts
+            else if (e.key === '?') {
+                openKeyboardShortcuts();
             }
         });
         
@@ -554,6 +599,89 @@
                 closeSearchModal();
             }
         });
+    </script>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="keyboard-shortcuts-modal" class="fixed inset-0 z-[200] hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeKeyboardShortcuts()"></div>
+        <div class="relative max-w-md mx-auto mt-20 md:mt-32">
+            <div class="bg-wt-bg-card border border-wt-border-subtle rounded-2xl shadow-2xl overflow-hidden mx-4">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-wt-border-subtle">
+                    <h3 class="font-display text-lg font-bold text-wt-text-primary">Keyboard Shortcuts</h3>
+                    <button onclick="closeKeyboardShortcuts()" class="p-2 rounded-lg hover:bg-wt-bg-page text-wt-text-tertiary">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-5 space-y-4">
+                    <!-- Navigation -->
+                    <div>
+                        <h4 class="text-xs font-semibold text-wt-text-tertiary uppercase mb-2">Navigation</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Feed</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">1</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Board</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">2</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Costs</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">3</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Cron</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">4</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Sessions</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">5</kbd>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Actions -->
+                    <div>
+                        <h4 class="text-xs font-semibold text-wt-text-tertiary uppercase mb-2">Actions</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Search</span>
+                                <div class="flex items-center gap-1">
+                                    <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">⌘</kbd>
+                                    <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">K</kbd>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">New Task</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">N</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Close Modal</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">Esc</kbd>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-wt-text-secondary">Show Shortcuts</span>
+                                <kbd class="px-2 py-1 bg-wt-bg-page rounded text-xs font-mono text-wt-text-tertiary">?</kbd>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function openKeyboardShortcuts() {
+            const modal = document.getElementById('keyboard-shortcuts-modal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            lucide.createIcons();
+        }
+        
+        function closeKeyboardShortcuts() {
+            const modal = document.getElementById('keyboard-shortcuts-modal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
     </script>
 
     <!-- Toast Notification Container -->
