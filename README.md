@@ -239,20 +239,20 @@ curl -X POST http://localhost:3002/api/tasks \
 
 ## Configuration
 
-All configuration via environment variables:
+All configuration via environment variables. Copy `.env.example` to `.env` and fill in what you need.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3002` | Server port |
-| `DATABASE_URL` | `sqlite:data/watchtower.db` | SQLite database path |
-| `WATCHTOWER_API_TOKEN` | *(empty)* | Bearer token for API auth (empty = no auth) |
-| `WATCHTOWER_USER` | *(empty)* | Web UI basic auth username |
-| `WATCHTOWER_PASS` | *(empty)* | Web UI basic auth password |
-| `TELEGRAM_BOT_TOKEN` | *(empty)* | Telegram bot token for notifications |
-| `TELEGRAM_CHAT_ID` | *(empty)* | Telegram chat ID for notifications |
-| `OPENCLAW_LOG_PATH` | `$HOME/.openclaw/logs/gateway.log` | Path to OpenClaw gateway log |
+| `PORT` | `3002` | Port the server listens on. |
+| `DATABASE_URL` | `sqlite:data/watchtower.db` | SQLite database path. The `data/` directory and DB file are created automatically on first run. |
+| `WATCHTOWER_API_TOKEN` | *(empty)* | Bearer token required for REST API calls (`Authorization: Bearer <token>`). When empty, **no API auth is enforced** — fine if Watchtower is only accessible on a private network (e.g., behind Tailscale or a VPN). Set this if you expose Watchtower on a shared network or through a reverse proxy. |
+| `WATCHTOWER_USER` | *(empty)* | Username for HTTP Basic Auth on the web UI. When empty (along with `WATCHTOWER_PASS`), **the web UI is open** — again, fine behind a private network. |
+| `WATCHTOWER_PASS` | *(empty)* | Password for HTTP Basic Auth on the web UI. Both `WATCHTOWER_USER` and `WATCHTOWER_PASS` must be set for web auth to activate. |
+| `TELEGRAM_BOT_TOKEN` | *(empty)* | Telegram bot token for sending notifications (task blocked, cron failures, cost alerts). Optional — Watchtower works fully without it. |
+| `TELEGRAM_CHAT_ID` | *(empty)* | Telegram chat/user ID to receive notifications. Required alongside `TELEGRAM_BOT_TOKEN`. |
+| `OPENCLAW_LOG_PATH` | `$HOME/.openclaw/logs/gateway.log` | Path to the OpenClaw gateway log file. Watchtower tails this file in the background to extract agent activity events for the live feed. If the file doesn't exist yet, the watcher waits until it appears. Set this if your OpenClaw logs live somewhere non-standard. |
 
-Copy `.env.example` to `.env` and fill in your values.
+> **Note on log tailing:** Watchtower reads agent activity from OpenClaw's gateway log because OpenClaw doesn't currently expose a real-time event stream or webhook API. The gateway log is the only source of granular tool calls, shell commands, and file operations as they happen. If OpenClaw adds an event streaming API in the future, Watchtower will switch to that. For syncing cron jobs and session data, Watchtower uses its own REST API which can be fed by the agent or helper scripts.
 
 ## Project Structure
 
