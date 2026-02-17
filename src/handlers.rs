@@ -5,7 +5,7 @@ use crate::sse::Broadcaster;
 use actix_web::{delete, get, patch, post, web, HttpRequest, HttpResponse, Responder};
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Check API token authentication
 fn check_auth(req: &HttpRequest, expected_token: &str) -> bool {
@@ -555,49 +555,50 @@ pub async fn run_cron_job(
     
     let job_id = path.into_inner();
     
-    // Check job exists
+    // Try gateway first for real cron execution
+    if let Some(gw) = crate::gateway_client::get_gateway_client() {
+        match gw.run_cron_job(&job_id).await {
+            Ok(result) => {
+                info!(job_id = %job_id, "Cron job triggered via gateway");
+                return HttpResponse::Ok().json(serde_json::json!({
+                    "status": "triggered",
+                    "job_id": job_id,
+                    "message": "Cron job triggered via gateway",
+                    "result": result
+                }));
+            }
+            Err(e) => {
+                warn!("Gateway cron run failed for {}: {}, falling back to local", job_id, e);
+            }
+        }
+    }
+    
+    // Fallback: record event locally
     match db::get_cron_job(&pool, &job_id).await {
         Ok(Some(job)) => {
-            // Record a "run requested" event
             let event = CreateEvent {
                 event_type: "cron_run_requested".to_string(),
                 summary: format!("Manual run requested for cron job: {}", job.name),
                 detail: Some(format!("Job ID: {}", job_id)),
                 session_id: None,
                 task_id: None,
-                metadata: Some(serde_json::json!({
-                    "job_id": job_id,
-                    "job_name": job.name
-                })),
+                metadata: Some(serde_json::json!({ "job_id": job_id, "job_name": job.name })),
             };
             
             match db::insert_event(&pool, &event).await {
                 Ok(evt) => {
                     broadcaster.broadcast("event", serde_json::to_value(&evt).unwrap());
-                    info!(job_id = %job_id, "Cron job run requested");
                     HttpResponse::Ok().json(serde_json::json!({
                         "status": "run_requested",
                         "job_id": job_id,
-                        "message": "Run request recorded. The agent will pick this up on next check."
+                        "message": "Run request recorded (gateway unavailable)"
                     }))
                 }
-                Err(e) => {
-                    error!("Failed to record run request for cron job {}: {}", job_id, e);
-                    HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": e.to_string()
-                    }))
-                }
+                Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() }))
             }
         }
-        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Cron job not found"
-        })),
-        Err(e) => {
-            error!("Failed to get cron job {}: {}", job_id, e);
-            HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": e.to_string()
-            }))
-        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({ "error": "Cron job not found" })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e.to_string() }))
     }
 }
 

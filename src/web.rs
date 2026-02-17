@@ -130,18 +130,49 @@ fn gateway_costs_to_stats(data: &serde_json::Value) -> UsageStats {
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
     let mut total_cost: f64 = 0.0;
+    let mut total_cache_read: i64 = 0;
+    let mut total_cache_write: i64 = 0;
     
     for day in daily {
         total_input += day.get("input").and_then(|v| v.as_i64()).unwrap_or(0);
         total_output += day.get("output").and_then(|v| v.as_i64()).unwrap_or(0);
         total_cost += day.get("totalCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        total_cache_read += day.get("cacheRead").and_then(|v| v.as_i64()).unwrap_or(0);
+        total_cache_write += day.get("cacheWrite").and_then(|v| v.as_i64()).unwrap_or(0);
+    }
+    
+    // Build a cost breakdown by category (input/output/cache) since we don't have per-model data
+    let mut by_model = vec![];
+    
+    let mut input_cost: f64 = 0.0;
+    let mut output_cost: f64 = 0.0;
+    let mut cache_read_cost: f64 = 0.0;
+    let mut cache_write_cost: f64 = 0.0;
+    for day in daily {
+        input_cost += day.get("inputCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        output_cost += day.get("outputCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        cache_read_cost += day.get("cacheReadCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        cache_write_cost += day.get("cacheWriteCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    }
+    
+    if cache_write_cost > 0.0 {
+        by_model.push(ModelUsage { model: "Cache Write".to_string(), input_tokens: total_cache_write, output_tokens: 0, cost_usd: cache_write_cost });
+    }
+    if cache_read_cost > 0.0 {
+        by_model.push(ModelUsage { model: "Cache Read".to_string(), input_tokens: total_cache_read, output_tokens: 0, cost_usd: cache_read_cost });
+    }
+    if output_cost > 0.0 {
+        by_model.push(ModelUsage { model: "Output Tokens".to_string(), input_tokens: 0, output_tokens: total_output, cost_usd: output_cost });
+    }
+    if input_cost > 0.0 {
+        by_model.push(ModelUsage { model: "Input Tokens".to_string(), input_tokens: total_input, output_tokens: 0, cost_usd: input_cost });
     }
     
     UsageStats {
         total_input_tokens: total_input,
         total_output_tokens: total_output,
         total_cost_usd: total_cost,
-        by_model: vec![],
+        by_model,
     }
 }
 
@@ -999,7 +1030,26 @@ pub async fn costs_chart_partial(
         return resp;
     }
     
-    let costs = db::get_daily_costs(&pool, 14).await.unwrap_or_default();
+    let costs = if let Some(gw) = gateway_client::get_gateway_client() {
+        match gw.get_costs().await {
+            Ok(data) => {
+                let daily = data.get("daily").and_then(|v| v.as_array());
+                daily.map(|arr| {
+                    arr.iter().rev().take(14).map(|d| {
+                        db::DailyCostRow {
+                            date: d.get("date").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                            cost_usd: d.get("totalCost").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                            input_tokens: d.get("input").and_then(|v| v.as_i64()).unwrap_or(0),
+                            output_tokens: d.get("output").and_then(|v| v.as_i64()).unwrap_or(0),
+                        }
+                    }).collect::<Vec<_>>()
+                }).unwrap_or_default()
+            }
+            Err(_) => db::get_daily_costs(&pool, 14).await.unwrap_or_default()
+        }
+    } else {
+        db::get_daily_costs(&pool, 14).await.unwrap_or_default()
+    };
     let max_cost = costs.iter().map(|c| c.cost_usd).fold(0.0_f64, |a, b| a.max(b));
     
     let template = CostsChartTemplate { 
