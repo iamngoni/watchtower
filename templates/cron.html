@@ -3,7 +3,7 @@
 {% block content %}
 <div class="flex flex-col h-screen">
     <!-- Header -->
-    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-8">
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-4 lg:px-8">
         <div class="flex items-center gap-3">
             <h1 class="font-display text-xl font-bold text-wt-text-primary">Cron Jobs</h1>
         </div>
@@ -12,52 +12,137 @@
     <!-- Content -->
     <div class="flex-1 overflow-y-auto">
         {% if jobs.is_empty() %}
-        <div class="flex flex-col items-center justify-center h-full text-center">
+        <div class="flex flex-col items-center justify-center h-full text-center px-4">
             <i data-lucide="clock" class="w-16 h-16 text-wt-text-tertiary mb-4"></i>
             <h2 class="text-lg font-semibold text-wt-text-primary mb-2">No cron jobs</h2>
             <p class="text-sm text-wt-text-secondary">Cron jobs will appear here when synced from OpenClaw</p>
         </div>
         {% else %}
-        <div class="divide-y divide-wt-border-subtle">
+        <!-- Desktop Table View -->
+        <div class="hidden lg:block">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-wt-border-subtle bg-wt-bg-sidebar">
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Status</th>
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Name</th>
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Schedule</th>
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Last Run</th>
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Next Run</th>
+                        <th class="text-left py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Result</th>
+                        <th class="text-right py-3 px-6 text-xs font-semibold text-wt-text-tertiary uppercase tracking-wide">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-wt-border-subtle">
+                    {% for job in jobs %}
+                    <tr class="hover:bg-wt-bg-sidebar/50">
+                        <!-- Status indicator -->
+                        <td class="py-4 px-6">
+                            <div class="w-2.5 h-2.5 rounded-full
+                                {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
+                        </td>
+                        
+                        <!-- Name -->
+                        <td class="py-4 px-6">
+                            <p class="text-sm font-semibold text-wt-text-primary">{{ job.name }}</p>
+                        </td>
+                        
+                        <!-- Schedule -->
+                        <td class="py-4 px-6">
+                            <code class="text-xs text-wt-text-secondary bg-wt-bg-card px-2 py-1 rounded">{{ job.schedule }}</code>
+                        </td>
+                        
+                        <!-- Last run -->
+                        <td class="py-4 px-6">
+                            {% match job.last_run_at %}
+                            {% when Some with (ts) %}
+                            <span class="text-sm text-wt-text-secondary" data-timestamp="{{ ts }}"></span>
+                            {% when None %}
+                            <span class="text-sm text-wt-text-tertiary">Never</span>
+                            {% endmatch %}
+                        </td>
+                        
+                        <!-- Next run -->
+                        <td class="py-4 px-6">
+                            {% match job.next_run_at %}
+                            {% when Some with (ts) %}
+                            <span class="text-sm text-wt-text-secondary" data-timestamp="{{ ts }}"></span>
+                            {% when None %}
+                            <span class="text-sm text-wt-text-tertiary">—</span>
+                            {% endmatch %}
+                        </td>
+                        
+                        <!-- Status badge -->
+                        <td class="py-4 px-6">
+                            {% match job.last_status %}
+                            {% when Some with (status) %}
+                            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold
+                                {% if status == "success" %}bg-wt-accent-green-light text-wt-accent-green{% else %}{% if status == "failed" %}bg-wt-accent-red-light text-wt-accent-red{% else %}bg-wt-bg-card text-wt-text-tertiary{% endif %}{% endif %}">{{ status }}</span>
+                            {% when None %}
+                            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] font-semibold bg-wt-bg-card text-wt-text-tertiary">pending</span>
+                            {% endmatch %}
+                        </td>
+                        
+                        <!-- Actions -->
+                        <td class="py-4 px-6">
+                            <div class="flex items-center justify-end gap-3">
+                                <!-- Run Now button -->
+                                <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors" title="Run Now">
+                                    <i data-lucide="play" class="w-4 h-4"></i>
+                                </button>
+                                
+                                <!-- Enable/Disable toggle -->
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" {% if job.enabled != 0 %}checked{% endif %} onchange="toggleCronJob('{{ job.job_id }}', this.checked)">
+                                    <div class="w-9 h-5 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
+                                </label>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Card View -->
+        <div class="lg:hidden divide-y divide-wt-border-subtle">
             {% for job in jobs %}
-            <div class="flex items-center gap-3 px-8 py-4 hover:bg-wt-bg-sidebar/50">
-                <!-- Status indicator -->
-                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
-                    {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
-                
-                <!-- Name -->
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-wt-text-primary truncate">{{ job.name }}</p>
-                    <p class="text-xs text-wt-text-tertiary">{{ job.schedule }}</p>
-                </div>
-                
-                <!-- Last run -->
-                <div class="text-right">
-                    <p class="text-xs text-wt-text-secondary">Last run</p>
-                    <p class="text-xs text-wt-text-tertiary">
-                        {% match job.last_run_at %}
-                        {% when Some with (ts) %}{{ ts }}{% when None %}Never{% endmatch %}
-                    </p>
-                </div>
-                
-                <!-- Next run -->
-                <div class="text-right">
-                    <p class="text-xs text-wt-text-secondary">Next run</p>
-                    <p class="text-xs text-wt-text-tertiary">
-                        {% match job.next_run_at %}
-                        {% when Some with (ts) %}{{ ts }}{% when None %}—{% endmatch %}
-                    </p>
-                </div>
-                
-                <!-- Status badge -->
-                <div class="w-20 text-right">
+            <div class="p-4">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                            {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
+                        <p class="text-sm font-semibold text-wt-text-primary">{{ job.name }}</p>
+                    </div>
                     {% match job.last_status %}
                     {% when Some with (status) %}
-                    <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold
                         {% if status == "success" %}bg-wt-accent-green-light text-wt-accent-green{% else %}{% if status == "failed" %}bg-wt-accent-red-light text-wt-accent-red{% else %}bg-wt-bg-card text-wt-text-tertiary{% endif %}{% endif %}">{{ status }}</span>
                     {% when None %}
-                    <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold bg-wt-bg-card text-wt-text-tertiary">pending</span>
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-wt-bg-card text-wt-text-tertiary">pending</span>
                     {% endmatch %}
+                </div>
+                
+                <div class="flex items-center gap-4 text-xs text-wt-text-tertiary mb-3">
+                    <code class="bg-wt-bg-card px-2 py-1 rounded">{{ job.schedule }}</code>
+                    <span>
+                        Last: {% match job.last_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}Never{% endmatch %}
+                    </span>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-wt-text-tertiary">
+                        Next: {% match job.next_run_at %}{% when Some with (ts) %}<span data-timestamp="{{ ts }}"></span>{% when None %}—{% endmatch %}
+                    </span>
+                    
+                    <div class="flex items-center gap-3">
+                        <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                        </button>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" {% if job.enabled != 0 %}checked{% endif %} onchange="toggleCronJob('{{ job.job_id }}', this.checked)">
+                            <div class="w-9 h-5 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
+                        </label>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -65,4 +150,24 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    formatAllTimestamps();
+
+    // Placeholder functions for cron controls
+    function runCronJob(jobId) {
+        // This will be wired up to the actual API later
+        console.log('Run cron job:', jobId);
+        // Show a toast or feedback
+        alert('Run now triggered for: ' + jobId + '\n(API integration pending)');
+    }
+
+    function toggleCronJob(jobId, enabled) {
+        // This will be wired up to the actual API later
+        console.log('Toggle cron job:', jobId, enabled);
+        // The visual toggle already works, API integration pending
+    }
+</script>
 {% endblock %}

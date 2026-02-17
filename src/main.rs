@@ -122,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
             .service(web::sessions_page)
             // HTMX partials
             .service(web::events_partial)
+            .service(web::task_detail_partial)  // More specific route first
             .service(web::tasks_partial)
             // Static files
             .service(fs::Files::new("/static", "static").show_files_listing())

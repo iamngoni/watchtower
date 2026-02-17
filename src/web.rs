@@ -73,6 +73,20 @@ fn require_web_auth(req: &HttpRequest, config: &crate::Config) -> Option<HttpRes
 // ============================================================================
 
 #[derive(Template)]
+#[template(path = "dashboard.html")]
+struct DashboardTemplate {
+    title: String,
+    active_page: String,
+    total_tasks: usize,
+    active_tasks: usize,
+    pending_tasks: usize,
+    today_cost: f64,
+    recent_events: Vec<Event>,
+    blocked_tasks: Vec<Task>,
+    failed_cron_jobs: Vec<CronJob>,
+}
+
+#[derive(Template)]
 #[template(path = "feed.html")]
 struct FeedTemplate {
     title: String,
@@ -124,16 +138,64 @@ struct SessionsTemplate {
 #[get("/")]
 pub async fn index(
     req: HttpRequest,
+    pool: web::Data<SqlitePool>,
     config: web::Data<crate::Config>,
 ) -> impl Responder {
     if let Some(resp) = require_web_auth(&req, &config) {
         return resp;
     }
     
-    // Redirect to feed
-    HttpResponse::Found()
-        .insert_header(("Location", "/feed"))
-        .finish()
+    // Get all tasks for stats
+    let all_tasks = db::list_tasks(&pool, None, None, None)
+        .await
+        .unwrap_or_default();
+    
+    let total_tasks = all_tasks.len();
+    let active_tasks = all_tasks.iter().filter(|t| t.status == "in_progress").count();
+    let pending_tasks = all_tasks.iter().filter(|t| t.status == "todo").count();
+    let blocked_tasks: Vec<Task> = all_tasks.iter().filter(|t| t.status == "blocked").cloned().collect();
+    
+    // Get today's cost
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let stats = db::get_usage_stats(&pool, Some(&today), Some(&today))
+        .await
+        .unwrap_or_else(|_| UsageStats {
+            total_input_tokens: 0,
+            total_output_tokens: 0,
+            total_cost_usd: 0.0,
+            by_model: vec![],
+        });
+    
+    // Get recent events
+    let recent_events = db::list_events(&pool, None, 5, 0)
+        .await
+        .unwrap_or_default();
+    
+    // Get cron jobs with errors
+    let all_jobs = db::list_cron_jobs(&pool).await.unwrap_or_default();
+    let failed_cron_jobs: Vec<CronJob> = all_jobs.into_iter()
+        .filter(|j| j.consecutive_errors > 0 || j.last_status.as_deref() == Some("failed"))
+        .collect();
+    
+    let template = DashboardTemplate {
+        title: "Dashboard".to_string(),
+        active_page: "dashboard".to_string(),
+        total_tasks,
+        active_tasks,
+        pending_tasks,
+        today_cost: stats.total_cost_usd,
+        recent_events,
+        blocked_tasks,
+        failed_cron_jobs,
+    };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
 }
 
 #[get("/feed")]
@@ -314,6 +376,15 @@ struct TaskCardTemplate {
     task: Task,
 }
 
+#[derive(Template)]
+#[template(path = "partials/task_detail.html")]
+struct TaskDetailTemplate {
+    task: Task,
+    labels: Vec<String>,
+    comments: Vec<TaskComment>,
+    history: Vec<TaskHistory>,
+}
+
 #[get("/partials/events")]
 pub async fn events_partial(
     req: HttpRequest,
@@ -364,4 +435,56 @@ pub async fn tasks_partial(
     }
     
     HttpResponse::Ok().content_type("text/html").body(html)
+}
+
+#[get("/partials/tasks/{id}/detail")]
+pub async fn task_detail_partial(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    path: web::Path<i64>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let task_id = path.into_inner();
+    
+    // Get the task
+    let task = match db::get_task(&pool, task_id).await {
+        Ok(Some(t)) => t,
+        Ok(None) => return HttpResponse::NotFound().body("Task not found"),
+        Err(e) => {
+            error!("Failed to get task: {}", e);
+            return HttpResponse::InternalServerError().body("Database error");
+        }
+    };
+    
+    // Parse labels from JSON string
+    let labels: Vec<String> = serde_json::from_str(&task.labels).unwrap_or_default();
+    
+    // Get comments
+    let comments = db::get_task_comments(&pool, task_id)
+        .await
+        .unwrap_or_default();
+    
+    // Get history
+    let history = db::get_task_history(&pool, task_id)
+        .await
+        .unwrap_or_default();
+    
+    let template = TaskDetailTemplate {
+        task,
+        labels,
+        comments,
+        history,
+    };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
 }

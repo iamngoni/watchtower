@@ -1,0 +1,212 @@
+<div class="relative">
+    <!-- Header -->
+    <div class="flex items-start justify-between p-6 border-b border-wt-border-subtle">
+        <div class="flex items-start gap-3 flex-1 min-w-0">
+            <div class="w-3 h-3 rounded-full mt-1.5 flex-shrink-0 priority-dot" data-priority="{{ task.priority }}"></div>
+            <div class="flex-1 min-w-0">
+                <h2 class="font-display text-xl font-bold text-wt-text-primary">{{ task.title }}</h2>
+                <div class="flex items-center gap-2 mt-2 flex-wrap">
+                    <span class="priority-badge px-2.5 py-1 rounded-full text-[11px] font-semibold" data-priority="{{ task.priority }}">{{ task.priority }}</span>
+                    <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-wt-bg-card text-wt-text-secondary">{{ task.status }}</span>
+                </div>
+            </div>
+        </div>
+        <button onclick="closeTaskDetail()" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+
+    <!-- Content -->
+    <div class="p-6 space-y-6">
+        <!-- Description -->
+        <div>
+            <h3 class="text-sm font-semibold text-wt-text-secondary mb-2">Description</h3>
+            {% match task.description %}
+            {% when Some with (desc) %}
+            <div class="prose prose-invert prose-sm max-w-none text-wt-text-primary">
+                <p class="whitespace-pre-wrap">{{ desc }}</p>
+            </div>
+            {% when None %}
+            <p class="text-sm text-wt-text-tertiary italic">No description provided</p>
+            {% endmatch %}
+        </div>
+
+        <!-- Meta Info -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-wt-bg-card rounded-xl p-4">
+                <p class="text-xs text-wt-text-tertiary mb-1">Created by</p>
+                <div class="flex items-center gap-2">
+                    <div class="actor-icon w-6 h-6 rounded-full flex items-center justify-center" data-actor="{{ task.created_by }}">
+                        <i data-lucide="user" class="w-3 h-3 text-white actor-lucide"></i>
+                    </div>
+                    <span class="text-sm font-medium text-wt-text-primary capitalize">{{ task.created_by }}</span>
+                </div>
+            </div>
+            <div class="bg-wt-bg-card rounded-xl p-4">
+                <p class="text-xs text-wt-text-tertiary mb-1">Assigned to</p>
+                <div class="flex items-center gap-2">
+                    <div class="actor-icon w-6 h-6 rounded-full flex items-center justify-center" data-actor="{{ task.assigned_to }}">
+                        <i data-lucide="user" class="w-3 h-3 actor-lucide"></i>
+                    </div>
+                    <span class="text-sm font-medium text-wt-text-primary capitalize">{{ task.assigned_to }}</span>
+                </div>
+            </div>
+            {% match task.due_date %}
+            {% when Some with (due) %}
+            <div class="bg-wt-bg-card rounded-xl p-4">
+                <p class="text-xs text-wt-text-tertiary mb-1">Due date</p>
+                <p class="text-sm font-medium text-wt-text-primary" data-timestamp="{{ due }}"></p>
+            </div>
+            {% when None %}
+            {% endmatch %}
+            <div class="bg-wt-bg-card rounded-xl p-4">
+                <p class="text-xs text-wt-text-tertiary mb-1">Created</p>
+                <p class="text-sm font-medium text-wt-text-primary" data-timestamp="{{ task.created_at }}"></p>
+            </div>
+        </div>
+
+        <!-- Labels -->
+        {% if labels.len() > 0 %}
+        <div>
+            <h3 class="text-sm font-semibold text-wt-text-secondary mb-2">Labels</h3>
+            <div class="flex flex-wrap gap-2">
+                {% for label in labels %}
+                <span class="px-2.5 py-1 rounded-full bg-wt-accent-indigo-light text-wt-accent-indigo text-xs font-medium">{{ label }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Status History Timeline -->
+        {% if history.len() > 0 %}
+        <div>
+            <h3 class="text-sm font-semibold text-wt-text-secondary mb-3">Status History</h3>
+            <div class="space-y-3">
+                {% for h in history %}
+                <div class="flex items-start gap-3">
+                    <div class="w-2 h-2 rounded-full bg-wt-accent-indigo mt-1.5 flex-shrink-0"></div>
+                    <div class="flex-1">
+                        <p class="text-sm text-wt-text-primary">
+                            {% match h.from_status %}
+                            {% when Some with (from) %}
+                            <span class="text-wt-text-secondary">{{ from }}</span>
+                            <span class="text-wt-text-tertiary mx-1">→</span>
+                            {% when None %}
+                            <span class="text-wt-text-tertiary">Created as </span>
+                            {% endmatch %}
+                            <span class="font-medium">{{ h.to_status }}</span>
+                        </p>
+                        <p class="text-xs text-wt-text-tertiary mt-0.5">
+                            by <span class="capitalize">{{ h.changed_by }}</span> · <span data-timestamp="{{ h.created_at }}"></span>
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Comments Section -->
+        <div>
+            <h3 class="text-sm font-semibold text-wt-text-secondary mb-3">Comments ({{ comments.len() }})</h3>
+            
+            <!-- Add Comment Form -->
+            <form id="add-comment-form" class="mb-4" onsubmit="submitComment(event, {{ task.id }})">
+                <div class="flex gap-2">
+                    <input type="text" name="content" placeholder="Add a comment..." required
+                        class="flex-1 bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary placeholder-wt-text-tertiary outline-none focus:border-wt-accent-indigo">
+                    <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-wt-accent-indigo text-white hover:bg-wt-accent-indigo/90">
+                        Post
+                    </button>
+                </div>
+            </form>
+
+            {% if comments.is_empty() %}
+            <p class="text-sm text-wt-text-tertiary italic">No comments yet</p>
+            {% else %}
+            <div class="space-y-3" id="comments-list">
+                {% for comment in comments %}
+                <div class="bg-wt-bg-card rounded-xl p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="actor-icon w-6 h-6 rounded-full flex items-center justify-center" data-actor="{{ comment.author }}">
+                            <i data-lucide="user" class="w-3 h-3 text-white actor-lucide"></i>
+                        </div>
+                        <span class="text-sm font-medium text-wt-text-primary capitalize">{{ comment.author }}</span>
+                        <span class="text-xs text-wt-text-tertiary" data-timestamp="{{ comment.created_at }}"></span>
+                    </div>
+                    <p class="text-sm text-wt-text-secondary">{{ comment.content }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Style priority elements
+    document.querySelectorAll('.priority-dot').forEach(el => {
+        const p = el.dataset.priority;
+        el.classList.remove('bg-wt-accent-red', 'bg-wt-accent-orange', 'bg-wt-accent-blue', 'bg-wt-accent-green');
+        if (p === 'urgent') el.classList.add('bg-wt-accent-red');
+        else if (p === 'high') el.classList.add('bg-wt-accent-orange');
+        else if (p === 'normal') el.classList.add('bg-wt-accent-blue');
+        else el.classList.add('bg-wt-accent-green');
+    });
+    
+    document.querySelectorAll('.priority-badge').forEach(el => {
+        const p = el.dataset.priority;
+        el.classList.remove('bg-wt-accent-red-light', 'text-wt-accent-red', 'bg-wt-accent-orange-light', 'text-wt-accent-orange', 'bg-wt-accent-blue-light', 'text-wt-accent-blue', 'bg-wt-accent-green-light', 'text-wt-accent-green');
+        if (p === 'urgent') {
+            el.classList.add('bg-wt-accent-red-light', 'text-wt-accent-red');
+        } else if (p === 'high') {
+            el.classList.add('bg-wt-accent-orange-light', 'text-wt-accent-orange');
+        } else if (p === 'normal') {
+            el.classList.add('bg-wt-accent-blue-light', 'text-wt-accent-blue');
+        } else {
+            el.classList.add('bg-wt-accent-green-light', 'text-wt-accent-green');
+        }
+    });
+    
+    // Style actor icons
+    document.querySelectorAll('.actor-icon').forEach(el => {
+        const a = el.dataset.actor;
+        const icon = el.querySelector('.actor-lucide');
+        el.classList.remove('bg-wt-accent-indigo', 'bg-wt-accent-green', 'bg-wt-bg-page');
+        if (a === 'agent') {
+            el.classList.add('bg-wt-accent-indigo');
+            icon?.setAttribute('data-lucide', 'bot');
+            icon?.classList.add('text-white');
+        } else if (a === 'human') {
+            el.classList.add('bg-wt-accent-green');
+            icon?.setAttribute('data-lucide', 'user');
+            icon?.classList.add('text-white');
+        } else {
+            el.classList.add('bg-wt-bg-page');
+            icon?.setAttribute('data-lucide', 'help-circle');
+            icon?.classList.remove('text-white');
+            icon?.classList.add('text-wt-text-tertiary');
+        }
+    });
+    
+    lucide.createIcons();
+    formatAllTimestamps();
+
+    async function submitComment(e, taskId) {
+        e.preventDefault();
+        const form = e.target;
+        const input = form.querySelector('input[name="content"]');
+        const content = input.value.trim();
+        
+        if (!content) return;
+        
+        await fetch('/api/tasks/' + taskId + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, author: 'human' })
+        });
+        
+        // Reload the modal content
+        htmx.ajax('GET', '/partials/tasks/' + taskId + '/detail', {target: '#task-detail-content', swap: 'innerHTML'});
+    }
+</script>

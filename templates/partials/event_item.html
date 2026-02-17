@@ -1,7 +1,7 @@
 <div class="flex gap-3 py-4 border-b border-wt-border-subtle event-item" data-event-type="{{ event.event_type }}">
     <!-- Icon -->
-    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 event-icon-wrap">
-        <i data-lucide="activity" class="w-4 h-4 event-icon"></i>
+    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 event-icon-wrap bg-wt-accent-indigo-light">
+        <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo event-icon"></i>
     </div>
     
     <!-- Content -->
@@ -17,3 +17,55 @@
         {% endmatch %}
     </div>
 </div>
+
+<script>
+(function() {
+    // Style the event icon based on event type
+    const eventItem = document.currentScript.previousElementSibling;
+    const eventType = eventItem?.dataset?.eventType || '';
+    const iconWrap = eventItem?.querySelector('.event-icon-wrap');
+    const icon = eventItem?.querySelector('.event-icon');
+    
+    if (!iconWrap || !icon) return;
+    
+    // Reset classes
+    iconWrap.className = 'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0';
+    icon.className = 'w-4 h-4';
+    
+    // Determine icon and colors based on event type
+    let iconName = 'activity';
+    let bgClass = 'bg-wt-accent-indigo-light';
+    let textClass = 'text-wt-accent-indigo';
+    
+    if (eventType.includes('alert') || eventType.includes('error') || eventType.includes('fail')) {
+        iconName = 'alert-triangle';
+        bgClass = 'bg-wt-accent-red-light';
+        textClass = 'text-wt-accent-red';
+    } else if (eventType.includes('file') || eventType.includes('write') || eventType.includes('create')) {
+        iconName = 'file-edit';
+        bgClass = 'bg-wt-accent-green-light';
+        textClass = 'text-wt-accent-green';
+    } else if (eventType.includes('shell') || eventType.includes('exec') || eventType.includes('command')) {
+        iconName = 'terminal';
+        bgClass = 'bg-wt-accent-indigo-light';
+        textClass = 'text-wt-accent-indigo';
+    } else if (eventType.includes('api') || eventType.includes('request') || eventType.includes('http')) {
+        iconName = 'globe';
+        bgClass = 'bg-wt-accent-orange-light';
+        textClass = 'text-wt-accent-orange';
+    } else if (eventType.includes('task') || eventType.includes('kanban')) {
+        iconName = 'git-branch';
+        bgClass = 'bg-wt-accent-blue-light';
+        textClass = 'text-wt-accent-blue';
+    }
+    
+    iconWrap.classList.add(bgClass);
+    icon.classList.add(textClass);
+    icon.setAttribute('data-lucide', iconName);
+    
+    // Recreate this specific icon
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons({ nodes: [icon] });
+    }
+})();
+</script>

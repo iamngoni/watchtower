@@ -85,13 +85,27 @@
         .sortable-chosen {
             opacity: 0.8;
         }
+        /* Mobile sidebar overlay animation */
+        .sidebar-overlay {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .sidebar-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .sidebar-slide {
+            transition: transform 0.3s ease;
+        }
+        .sidebar-slide.closed {
+            transform: translateX(-100%);
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="bg-wt-bg-page text-wt-text-primary min-h-screen">
     <div class="flex min-h-screen">
-        <!-- Sidebar -->
-        <aside class="w-[260px] bg-wt-bg-sidebar border-r border-wt-border-subtle flex flex-col fixed h-full">
+        <!-- Desktop Sidebar (hidden on mobile) -->
+        <aside class="hidden lg:flex w-[260px] bg-wt-bg-sidebar border-r border-wt-border-subtle flex-col fixed h-full z-30">
             <!-- Logo -->
             <div class="px-4 py-6">
                 <div class="flex items-center gap-3 px-4 pb-6">
@@ -103,6 +117,58 @@
                 
                 <!-- Navigation -->
                 <nav class="space-y-1">
+                    <a href="/" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "dashboard" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Dashboard</span>
+                    </a>
+                    <a href="/feed" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "feed" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                        <span class="text-sm font-semibold">Feed</span>
+                    </a>
+                    <a href="/board" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "board" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="columns-3" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Board</span>
+                    </a>
+                    <a href="/costs" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "costs" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Costs</span>
+                    </a>
+                    <a href="/cron" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "cron" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="clock" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Cron</span>
+                    </a>
+                    <a href="/sessions" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "sessions" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="history" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Sessions</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Mobile Sidebar Overlay -->
+        <div id="mobile-sidebar-overlay" class="sidebar-overlay hidden fixed inset-0 bg-black/60 z-40 lg:hidden" onclick="closeMobileSidebar()"></div>
+        
+        <!-- Mobile Sidebar (slide-out) -->
+        <aside id="mobile-sidebar" class="sidebar-slide closed fixed top-0 left-0 w-[280px] h-full bg-wt-bg-sidebar border-r border-wt-border-subtle flex flex-col z-50 lg:hidden">
+            <div class="px-4 py-6">
+                <div class="flex items-center justify-between px-4 pb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-wt-accent-indigo rounded-lg flex items-center justify-center">
+                            <i data-lucide="radar" class="w-[18px] h-[18px] text-white"></i>
+                        </div>
+                        <span class="font-display text-lg font-bold text-wt-text-primary">Watchtower</span>
+                    </div>
+                    <button onclick="closeMobileSidebar()" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-secondary">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <!-- Navigation -->
+                <nav class="space-y-1">
+                    <a href="/" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "dashboard" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                        <span class="text-sm font-medium">Dashboard</span>
+                    </a>
                     <a href="/feed" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors {% if active_page == "feed" %}bg-wt-accent-indigo-light text-wt-accent-indigo{% else %}text-wt-text-secondary hover:bg-wt-bg-card{% endif %}">
                         <i data-lucide="activity" class="w-5 h-5"></i>
                         <span class="text-sm font-semibold">Feed</span>
@@ -128,14 +194,159 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 ml-[260px]">
+        <main class="flex-1 lg:ml-[260px] pb-20 lg:pb-0">
+            <!-- Mobile Header -->
+            <div class="lg:hidden flex items-center justify-between px-4 py-3 border-b border-wt-border-subtle bg-wt-bg-sidebar">
+                <button onclick="openMobileSidebar()" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-secondary">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 bg-wt-accent-indigo rounded-md flex items-center justify-center">
+                        <i data-lucide="radar" class="w-3.5 h-3.5 text-white"></i>
+                    </div>
+                    <span class="font-display text-sm font-bold text-wt-text-primary">Watchtower</span>
+                </div>
+                <div class="w-9"></div>
+            </div>
             {% block content %}{% endblock %}
         </main>
+
+        <!-- Mobile Bottom Navigation -->
+        <nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-wt-bg-sidebar border-t border-wt-border-subtle z-30">
+            <div class="flex items-center justify-around py-2">
+                <a href="/feed" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg {% if active_page == "feed" %}text-wt-accent-indigo{% else %}text-wt-text-tertiary{% endif %}">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium">Feed</span>
+                </a>
+                <a href="/board" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg {% if active_page == "board" %}text-wt-accent-indigo{% else %}text-wt-text-tertiary{% endif %}">
+                    <i data-lucide="columns-3" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium">Board</span>
+                </a>
+                <a href="/costs" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg {% if active_page == "costs" %}text-wt-accent-indigo{% else %}text-wt-text-tertiary{% endif %}">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium">Costs</span>
+                </a>
+                <a href="/cron" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg {% if active_page == "cron" %}text-wt-accent-indigo{% else %}text-wt-text-tertiary{% endif %}">
+                    <i data-lucide="clock" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium">Cron</span>
+                </a>
+                <a href="/sessions" class="flex flex-col items-center gap-1 px-3 py-2 rounded-lg {% if active_page == "sessions" %}text-wt-accent-indigo{% else %}text-wt-text-tertiary{% endif %}">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-medium">Sessions</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Task Detail Modal Container -->
+    <div id="task-detail-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div id="task-detail-content" class="bg-wt-bg-sidebar rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-wt-border-subtle">
+            <!-- Content loaded via HTMX -->
+        </div>
     </div>
 
     <script>
+        // Mobile sidebar functions
+        function openMobileSidebar() {
+            document.getElementById('mobile-sidebar-overlay').classList.remove('hidden');
+            document.getElementById('mobile-sidebar').classList.remove('closed');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeMobileSidebar() {
+            document.getElementById('mobile-sidebar-overlay').classList.add('hidden');
+            document.getElementById('mobile-sidebar').classList.add('closed');
+            document.body.style.overflow = '';
+        }
+
+        // Task detail modal functions
+        function openTaskDetail(taskId) {
+            const modal = document.getElementById('task-detail-modal');
+            const content = document.getElementById('task-detail-content');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+            
+            // Load content via HTMX
+            htmx.ajax('GET', '/partials/tasks/' + taskId + '/detail', {target: '#task-detail-content', swap: 'innerHTML'});
+        }
+        
+        function closeTaskDetail() {
+            const modal = document.getElementById('task-detail-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('task-detail-modal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTaskDetail();
+            }
+        });
+
+        // Format timestamps (shared utility)
+        function formatRelativeTime(timestamp) {
+            const now = Math.floor(Date.now() / 1000);
+            const diff = now - timestamp;
+            
+            if (diff < 0) {
+                // Future time
+                const absDiff = Math.abs(diff);
+                if (absDiff < 60) return 'in ' + absDiff + 's';
+                if (absDiff < 3600) return 'in ' + Math.floor(absDiff / 60) + 'm';
+                if (absDiff < 86400) return 'in ' + Math.floor(absDiff / 3600) + 'h';
+                return 'in ' + Math.floor(absDiff / 86400) + 'd';
+            }
+            
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        }
+        
+        function formatAllTimestamps() {
+            document.querySelectorAll('[data-timestamp]').forEach(el => {
+                const ts = parseInt(el.dataset.timestamp);
+                if (!isNaN(ts)) {
+                    el.textContent = formatRelativeTime(ts);
+                }
+            });
+        }
+
+        // Format numbers with commas
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+        
+        function formatCurrency(num) {
+            return '$' + num.toFixed(2);
+        }
+        
+        function formatAllNumbers() {
+            document.querySelectorAll('[data-format-number]').forEach(el => {
+                const num = parseInt(el.dataset.formatNumber);
+                if (!isNaN(num)) {
+                    el.textContent = formatNumber(num);
+                }
+            });
+            document.querySelectorAll('[data-format-currency]').forEach(el => {
+                const num = parseFloat(el.dataset.formatCurrency);
+                if (!isNaN(num)) {
+                    el.textContent = formatCurrency(num);
+                }
+            });
+        }
+
         // Initialize Lucide icons
         lucide.createIcons();
+        
+        // Format timestamps on load
+        formatAllTimestamps();
+        formatAllNumbers();
+        
+        // Update timestamps periodically
+        setInterval(formatAllTimestamps, 30000);
     </script>
     {% block scripts %}{% endblock %}
 </body>
