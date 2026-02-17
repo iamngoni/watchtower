@@ -1,8 +1,10 @@
 use crate::db;
 use crate::models::*;
+use crate::service_health::{HealthChecker, get_kompressor_stats};
 use crate::sse::Broadcaster;
 use actix_web::{delete, get, patch, post, web, HttpRequest, HttpResponse, Responder};
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use tracing::{error, info};
 
 /// Check API token authentication
@@ -647,6 +649,107 @@ pub async fn report_usage(
         }
         Err(e) => {
             error!("Failed to report usage: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": e.to_string()
+            }))
+        }
+    }
+}
+
+// ============================================================================
+// Service Health API
+// ============================================================================
+
+#[get("/api/services/health")]
+pub async fn services_health(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    health_checker: web::Data<Arc<HealthChecker>>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let health = health_checker.get_health().await;
+    HttpResponse::Ok().json(health)
+}
+
+#[get("/api/kompressor/stats")]
+pub async fn kompressor_stats(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let stats = get_kompressor_stats().await;
+    HttpResponse::Ok().json(stats)
+}
+
+// ============================================================================
+// Search API
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SearchQuery {
+    q: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SearchResults {
+    tasks: Vec<Task>,
+    events: Vec<Event>,
+    sessions: Vec<Session>,
+}
+
+#[get("/api/search")]
+pub async fn search_api(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    query: web::Query<SearchQuery>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    let q = &query.q;
+    
+    // Search tasks
+    let tasks = db::search_tasks(&pool, q).await.unwrap_or_default();
+    
+    // Search events
+    let events = db::search_events(&pool, q).await.unwrap_or_default();
+    
+    // Search sessions
+    let sessions = db::search_sessions(&pool, q).await.unwrap_or_default();
+    
+    HttpResponse::Ok().json(SearchResults {
+        tasks,
+        events,
+        sessions,
+    })
+}
+
+// ============================================================================
+// Daily Costs API
+// ============================================================================
+
+#[derive(Debug, serde::Serialize)]
+pub struct DailyCost {
+    pub date: String,
+    pub cost_usd: f64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[get("/api/costs/daily")]
+pub async fn get_daily_costs(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    require_auth!(&req, config);
+    
+    match db::get_daily_costs(&pool, 14).await {
+        Ok(costs) => HttpResponse::Ok().json(costs),
+        Err(e) => {
+            error!("Failed to get daily costs: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": e.to_string()
             }))

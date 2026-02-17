@@ -495,5 +495,82 @@
 
     // Re-initialize icons
     lucide.createIcons();
+
+    // Quick Actions Menu Functions
+    function toggleTaskMenu(taskId) {
+        // Close all other menus first
+        document.querySelectorAll('.task-menu').forEach(menu => {
+            if (menu.id !== `task-menu-${taskId}`) {
+                menu.classList.add('hidden');
+            }
+        });
+        
+        const menu = document.getElementById(`task-menu-${taskId}`);
+        if (menu) {
+            menu.classList.toggle('hidden');
+        }
+    }
+
+    // Close menus when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.task-menu') && !e.target.closest('button[onclick*="toggleTaskMenu"]')) {
+            document.querySelectorAll('.task-menu').forEach(menu => menu.classList.add('hidden'));
+        }
+    });
+
+    async function moveTask(taskId, newStatus) {
+        document.querySelectorAll('.task-menu').forEach(menu => menu.classList.add('hidden'));
+        
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+            
+            if (response.ok) {
+                const task = await response.json();
+                // Move the card
+                const card = document.querySelector(`.task-card[data-task-id="${taskId}"]`);
+                const targetColumn = document.querySelector(`.kanban-column[data-status="${newStatus}"]`);
+                
+                if (card && targetColumn) {
+                    card.dataset.status = newStatus;
+                    const emptyState = targetColumn.querySelector('.empty-column');
+                    if (emptyState) emptyState.remove();
+                    targetColumn.insertBefore(card, targetColumn.firstChild);
+                    handleEmptyColumns();
+                    updateColumnCounts();
+                }
+                showToast(`Moved to ${newStatus.replace('_', ' ')}`, 'success');
+            } else {
+                const error = await response.json();
+                showToast('Error: ' + (error.error || 'Failed to move task'), 'error');
+            }
+        } catch (e) {
+            showToast('Error: Failed to connect', 'error');
+        }
+    }
+
+    async function deleteTask(taskId) {
+        if (!confirm('Are you sure you want to delete this task?')) return;
+        
+        document.querySelectorAll('.task-menu').forEach(menu => menu.classList.add('hidden'));
+        
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`, {
+                method: 'DELETE',
+            });
+            
+            if (response.ok) {
+                removeTaskCard(taskId);
+                showToast('Task deleted', 'success');
+            } else {
+                showToast('Error: Failed to delete task', 'error');
+            }
+        } catch (e) {
+            showToast('Error: Failed to connect', 'error');
+        }
+    }
 </script>
 {% endblock %}

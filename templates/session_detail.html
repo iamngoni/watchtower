@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col min-h-screen">
+    <!-- Header -->
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-4 lg:px-8">
+        <div class="flex items-center gap-3">
+            <a href="/sessions" class="flex items-center gap-2 text-wt-text-tertiary hover:text-wt-text-primary transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="font-display text-xl font-bold text-wt-text-primary truncate">Session Details</h1>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto p-4 lg:p-8">
+        <!-- Session Info Card -->
+        <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5 lg:p-6 mb-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="font-display text-lg lg:text-xl font-bold text-wt-text-primary mb-1">
+                        {% match session.title %}
+                        {% when Some with (t) %}{{ t }}{% when None %}{{ session.session_key }}{% endmatch %}
+                    </h2>
+                    <p class="text-xs text-wt-text-tertiary font-mono">{{ session.session_key }}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold 
+                    {% if session.session_type == "conversation" %}bg-wt-accent-indigo-light text-wt-accent-indigo
+                    {% else if session.session_type == "sub_agent" %}bg-wt-accent-blue-light text-wt-accent-blue
+                    {% else %}bg-wt-accent-orange-light text-wt-accent-orange{% endif %}">
+                    {{ session.session_type }}
+                </span>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Model</p>
+                    <p class="text-sm font-semibold text-wt-text-primary truncate">
+                        {% match session.model %}
+                        {% when Some with (m) %}{{ m }}{% when None %}Unknown{% endmatch %}
+                    </p>
+                </div>
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Input Tokens</p>
+                    <p class="text-sm font-semibold text-wt-text-primary" data-format-number="{{ session.input_tokens }}">0</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Output Tokens</p>
+                    <p class="text-sm font-semibold text-wt-text-primary" data-format-number="{{ session.output_tokens }}">0</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Cost</p>
+                    <p class="text-sm font-semibold text-wt-accent-green" data-format-currency="{{ session.cost_usd }}">$0.00</p>
+                </div>
+            </div>
+
+            <!-- Cache Stats -->
+            {% if session.cache_read_tokens > 0 || session.cache_write_tokens > 0 %}
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Cache Read Tokens</p>
+                    <p class="text-sm font-semibold text-wt-text-primary" data-format-number="{{ session.cache_read_tokens }}">0</p>
+                </div>
+                <div class="bg-wt-bg-page rounded-xl p-4">
+                    <p class="text-[11px] font-medium text-wt-text-tertiary mb-1">Cache Write Tokens</p>
+                    <p class="text-sm font-semibold text-wt-text-primary" data-format-number="{{ session.cache_write_tokens }}">0</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Time Info -->
+            <div class="flex flex-wrap gap-4 text-xs text-wt-text-tertiary">
+                <div class="flex items-center gap-1">
+                    <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                    <span>Started: </span>
+                    <span data-timestamp="{{ session.started_at }}"></span>
+                </div>
+                {% match session.ended_at %}
+                {% when Some with (ended) %}
+                <div class="flex items-center gap-1">
+                    <i data-lucide="stop-circle" class="w-3.5 h-3.5"></i>
+                    <span>Ended: </span>
+                    <span data-timestamp="{{ ended }}"></span>
+                </div>
+                {% when None %}
+                <div class="flex items-center gap-1 text-wt-accent-green">
+                    <div class="w-2 h-2 bg-wt-accent-green rounded-full animate-pulse"></div>
+                    <span>In Progress</span>
+                </div>
+                {% endmatch %}
+            </div>
+        </div>
+
+        <!-- Events Timeline -->
+        <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+            <div class="px-5 py-4 border-b border-wt-border-subtle">
+                <h3 class="font-display text-base font-bold text-wt-text-primary">Activity Timeline</h3>
+                <p class="text-xs text-wt-text-tertiary mt-1">Events from this session</p>
+            </div>
+            
+            {% if events.is_empty() %}
+            <div class="p-8 text-center">
+                <i data-lucide="activity" class="w-10 h-10 text-wt-text-tertiary mx-auto mb-2"></i>
+                <p class="text-sm text-wt-text-secondary">No events recorded for this session</p>
+            </div>
+            {% else %}
+            <div class="divide-y divide-wt-border-subtle">
+                {% for event in events %}
+                <div class="flex gap-3 px-5 py-3">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-wt-accent-indigo-light">
+                        <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <span class="text-sm font-semibold text-wt-text-primary">{{ event.summary }}</span>
+                            <span class="text-xs text-wt-text-tertiary whitespace-nowrap" data-timestamp="{{ event.created_at }}"></span>
+                        </div>
+                        {% match event.detail %}
+                        {% when Some with (detail) %}
+                        <p class="text-xs text-wt-text-secondary mt-1 line-clamp-2">{{ detail }}</p>
+                        {% when None %}
+                        {% endmatch %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    formatAllTimestamps();
+    formatAllNumbers();
+</script>
+{% endblock %}

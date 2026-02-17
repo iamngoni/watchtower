@@ -1,0 +1,52 @@
+<div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+    <div class="px-4 lg:px-5 py-3 lg:py-4 border-b border-wt-border-subtle">
+        <h2 class="font-display text-sm lg:text-base font-bold text-wt-text-primary">Daily Costs (Last 14 Days)</h2>
+    </div>
+    <div class="p-4 lg:p-5">
+        {% if costs.is_empty() %}
+        <div class="text-center py-8">
+            <i data-lucide="bar-chart-3" class="w-10 h-10 text-wt-text-tertiary mx-auto mb-2"></i>
+            <p class="text-sm text-wt-text-secondary">No cost data yet</p>
+        </div>
+        {% else %}
+        <div class="flex items-end justify-between gap-1 h-40">
+            {% for cost in costs %}
+            <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
+                <!-- Bar -->
+                <div 
+                    class="w-full max-w-8 bg-wt-accent-indigo rounded-t-sm transition-all hover:bg-wt-accent-indigo-hover cost-bar"
+                    data-cost="{{ cost.cost_usd }}"
+                    data-max="{{ max_cost }}"
+                    title="${{ cost.cost_usd }}"
+                ></div>
+                <!-- Tooltip -->
+                <div class="absolute bottom-full mb-2 px-2 py-1 bg-wt-bg-card border border-wt-border-subtle rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
+                    <p class="font-medium text-wt-text-primary" data-format-currency="{{ cost.cost_usd }}">$0.00</p>
+                    <p class="text-wt-text-tertiary">{{ cost.date }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <!-- Date labels -->
+        <div class="flex justify-between mt-2 overflow-hidden">
+            {% if costs.len() > 0 %}
+            <span class="text-[9px] lg:text-[10px] text-wt-text-tertiary">{{ costs[costs.len()-1].date }}</span>
+            {% endif %}
+            {% if costs.len() > 0 %}
+            <span class="text-[9px] lg:text-[10px] text-wt-text-tertiary">{{ costs[0].date }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+<script>
+lucide.createIcons();
+formatAllNumbers();
+// Calculate bar heights
+document.querySelectorAll('.cost-bar').forEach(bar => {
+    const cost = parseFloat(bar.dataset.cost) || 0;
+    const max = parseFloat(bar.dataset.max) || 1;
+    const pct = Math.round((cost / max) * 100);
+    bar.style.height = Math.max(pct, 2) + '%';
+});
+</script>

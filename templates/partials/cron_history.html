@@ -1,0 +1,29 @@
+<div class="bg-wt-bg-page rounded-lg p-3 mt-2">
+    <h4 class="text-xs font-semibold text-wt-text-secondary mb-2">Recent Runs</h4>
+    {% if events.is_empty() %}
+    <p class="text-xs text-wt-text-tertiary">No run history available</p>
+    {% else %}
+    <div class="space-y-2">
+        {% for event in events %}
+        <div class="flex items-start gap-2 text-xs">
+            <div class="w-2 h-2 mt-1.5 rounded-full flex-shrink-0 
+                {% if event.event_type == "cron_run_failed" %}bg-wt-accent-red
+                {% else if event.event_type == "cron_run_completed" %}bg-wt-accent-green
+                {% else %}bg-wt-accent-orange{% endif %}"></div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-wt-text-secondary truncate">{{ event.summary }}</span>
+                    <span class="text-wt-text-tertiary whitespace-nowrap" data-timestamp="{{ event.created_at }}"></span>
+                </div>
+                {% match event.detail %}
+                {% when Some with (d) %}
+                <p class="text-wt-text-tertiary truncate mt-0.5">{{ d }}</p>
+                {% when None %}
+                {% endmatch %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+<script>formatAllTimestamps();</script>

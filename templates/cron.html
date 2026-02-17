@@ -34,11 +34,14 @@
                 </thead>
                 <tbody class="divide-y divide-wt-border-subtle">
                     {% for job in jobs %}
-                    <tr class="hover:bg-wt-bg-sidebar/50" id="cron-row-{{ job.job_id }}">
+                    <tr class="hover:bg-wt-bg-sidebar/50 cursor-pointer cron-row" id="cron-row-{{ job.job_id }}" onclick="toggleCronHistory('{{ job.job_id }}')">
                         <!-- Status indicator -->
                         <td class="py-4 px-6">
-                            <div class="status-dot w-2.5 h-2.5 rounded-full
-                                {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-wt-text-tertiary transition-transform cron-chevron-{{ job.job_id }}"></i>
+                                <div class="status-dot w-2.5 h-2.5 rounded-full
+                                    {% if job.enabled == 0 %}bg-wt-text-tertiary{% else %}{% if job.consecutive_errors > 0 %}bg-wt-accent-red animate-pulse{% else %}bg-wt-accent-green{% endif %}{% endif %}"></div>
+                            </div>
                         </td>
                         
                         <!-- Name -->
@@ -84,7 +87,7 @@
                         
                         <!-- Actions -->
                         <td class="py-4 px-6">
-                            <div class="flex items-center justify-end gap-3">
+                            <div class="flex items-center justify-end gap-3" onclick="event.stopPropagation();">
                                 <!-- Run Now button -->
                                 <button onclick="runCronJob('{{ job.job_id }}')" class="p-2 rounded-lg hover:bg-wt-bg-card text-wt-text-tertiary hover:text-wt-accent-indigo transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" title="Run Now">
                                     <i data-lucide="play" class="w-4 h-4"></i>
@@ -95,6 +98,17 @@
                                     <input type="checkbox" class="sr-only peer cron-toggle" data-job-id="{{ job.job_id }}" {% if job.enabled != 0 %}checked{% endif %}>
                                     <div class="w-11 h-6 bg-wt-bg-card peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:start-[2px] after:bg-wt-text-tertiary after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-wt-accent-indigo peer-checked:after:bg-white"></div>
                                 </label>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Expanded history row -->
+                    <tr id="cron-history-{{ job.job_id }}" class="hidden">
+                        <td colspan="7" class="bg-wt-bg-page px-6 pb-4">
+                            <div hx-get="/partials/cron/{{ job.job_id }}/history" hx-trigger="intersect once" hx-swap="innerHTML">
+                                <div class="flex items-center gap-2 py-4 text-xs text-wt-text-tertiary">
+                                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                                    <span>Loading history...</span>
+                                </div>
                             </div>
                         </td>
                     </tr>
@@ -199,6 +213,21 @@
             }
         } catch (e) {
             showToast('Error: Failed to connect');
+        }
+    }
+
+    // Toggle cron history row
+    function toggleCronHistory(jobId) {
+        const historyRow = document.getElementById(`cron-history-${jobId}`);
+        const chevron = document.querySelector(`.cron-chevron-${jobId}`);
+        
+        if (historyRow) {
+            historyRow.classList.toggle('hidden');
+            if (chevron) {
+                chevron.classList.toggle('rotate-90');
+            }
+            // Trigger HTMX load if not loaded yet
+            htmx.process(historyRow);
         }
     }
 

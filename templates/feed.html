@@ -35,10 +35,58 @@
     <div class="flex-1 overflow-y-auto" hx-ext="sse" sse-connect="/events/stream">
         <div id="events-container" class="px-4 lg:px-8" sse-swap="event" hx-swap="afterbegin">
             {% if events.is_empty() %}
-            <div class="flex flex-col items-center justify-center py-16 text-center">
-                <i data-lucide="activity" class="w-12 h-12 text-wt-text-tertiary mb-3"></i>
-                <p class="text-sm font-medium text-wt-text-secondary mb-1">No events yet</p>
-                <p class="text-xs text-wt-text-tertiary">Activity will appear here as the agent works</p>
+            <div class="flex flex-col items-center justify-center py-16 text-center px-4">
+                <i data-lucide="activity" class="w-12 h-12 text-wt-text-tertiary mb-4"></i>
+                <h3 class="text-lg font-bold text-wt-text-primary mb-2">No events yet</h3>
+                <p class="text-sm text-wt-text-secondary mb-6 max-w-md">Activity will appear here as the agent works. You can also push events manually using the script.</p>
+                
+                <!-- Getting Started Guide -->
+                <div class="bg-wt-bg-card rounded-xl border border-wt-border-subtle p-5 max-w-lg w-full text-left">
+                    <h4 class="text-sm font-bold text-wt-text-primary mb-3 flex items-center gap-2">
+                        <i data-lucide="terminal" class="w-4 h-4"></i>
+                        Push your first event
+                    </h4>
+                    <div class="bg-wt-bg-page rounded-lg p-3 mb-4 overflow-x-auto">
+                        <code class="text-xs text-wt-accent-indigo font-mono whitespace-pre">./scripts/push-event.sh shell "Hello Watchtower" "First test event"</code>
+                    </div>
+                    <p class="text-xs text-wt-text-tertiary mb-4">Or use curl directly:</p>
+                    <div class="bg-wt-bg-page rounded-lg p-3 overflow-x-auto">
+                        <code class="text-xs text-wt-text-secondary font-mono whitespace-pre">curl -X POST http://localhost:3002/api/events \
+  -H "Content-Type: application/json" \
+  -d '{"event_type":"test","summary":"Hello!"}'</code>
+                    </div>
+                </div>
+                
+                <!-- Quick Seed Buttons -->
+                <div class="flex flex-wrap gap-2 mt-6 justify-center">
+                    <button 
+                        class="px-4 py-2 rounded-lg bg-wt-accent-indigo text-white text-xs font-medium hover:bg-wt-accent-indigo-hover transition-colors"
+                        hx-post="/api/events"
+                        hx-vals='{"event_type":"shell","summary":"System initialized","detail":"Watchtower dashboard is now running"}'
+                        hx-swap="none"
+                    >
+                        <i data-lucide="terminal" class="w-3 h-3 inline-block mr-1"></i>
+                        Seed Shell Event
+                    </button>
+                    <button 
+                        class="px-4 py-2 rounded-lg bg-wt-accent-green text-white text-xs font-medium hover:opacity-90 transition-colors"
+                        hx-post="/api/events"
+                        hx-vals='{"event_type":"file","summary":"Config file updated","detail":"Updated watchtower configuration"}'
+                        hx-swap="none"
+                    >
+                        <i data-lucide="file-edit" class="w-3 h-3 inline-block mr-1"></i>
+                        Seed File Event
+                    </button>
+                    <button 
+                        class="px-4 py-2 rounded-lg bg-wt-accent-orange text-white text-xs font-medium hover:opacity-90 transition-colors"
+                        hx-post="/api/events"
+                        hx-vals='{"event_type":"api","summary":"API health check","detail":"All services responding normally"}'
+                        hx-swap="none"
+                    >
+                        <i data-lucide="globe" class="w-3 h-3 inline-block mr-1"></i>
+                        Seed API Event
+                    </button>
+                </div>
             </div>
             {% else %}
             {% for event in events %}

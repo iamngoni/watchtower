@@ -112,12 +112,24 @@
         <aside class="hidden lg:flex w-[260px] bg-wt-bg-sidebar border-r border-wt-border-subtle flex-col fixed h-full z-30">
             <!-- Logo -->
             <div class="px-4 py-6">
-                <div class="flex items-center gap-3 px-4 pb-6">
+                <div class="flex items-center gap-3 px-4 pb-4">
                     <div class="w-8 h-8 bg-wt-accent-indigo rounded-lg flex items-center justify-center">
                         <i data-lucide="radar" class="w-[18px] h-[18px] text-white"></i>
                     </div>
                     <span class="font-display text-lg font-bold text-wt-text-primary">Watchtower</span>
                 </div>
+                
+                <!-- Search Button -->
+                <button 
+                    onclick="openSearchModal()"
+                    class="w-full flex items-center justify-between px-4 py-2.5 mb-4 rounded-xl bg-wt-bg-card border border-wt-border-subtle hover:border-wt-border-default transition-colors group"
+                >
+                    <div class="flex items-center gap-2 text-wt-text-tertiary group-hover:text-wt-text-secondary">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span class="text-sm">Search...</span>
+                    </div>
+                    <kbd class="px-1.5 py-0.5 text-[10px] font-medium text-wt-text-tertiary bg-wt-bg-page rounded">⌘K</kbd>
+                </button>
                 
                 <!-- Navigation -->
                 <nav class="space-y-1">
@@ -353,6 +365,196 @@
         setInterval(formatAllTimestamps, 30000);
     </script>
     {% block scripts %}{% endblock %}
+
+    <!-- Global Search Modal (Cmd+K / Ctrl+K) -->
+    <div id="search-modal" class="fixed inset-0 z-[200] hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeSearchModal()"></div>
+        <div class="relative max-w-2xl mx-auto mt-20 md:mt-32">
+            <div class="bg-wt-bg-card border border-wt-border-subtle rounded-2xl shadow-2xl overflow-hidden mx-4">
+                <!-- Search Input -->
+                <div class="flex items-center gap-3 px-5 py-4 border-b border-wt-border-subtle">
+                    <i data-lucide="search" class="w-5 h-5 text-wt-text-tertiary flex-shrink-0"></i>
+                    <input 
+                        type="text" 
+                        id="global-search-input"
+                        placeholder="Search tasks, events, sessions..."
+                        class="flex-1 bg-transparent text-wt-text-primary placeholder-wt-text-tertiary outline-none text-base"
+                        autocomplete="off"
+                    >
+                    <kbd class="hidden sm:inline-flex px-2 py-1 text-[10px] font-medium text-wt-text-tertiary bg-wt-bg-page rounded">ESC</kbd>
+                </div>
+                
+                <!-- Search Results -->
+                <div id="search-results" class="max-h-96 overflow-y-auto">
+                    <div class="p-6 text-center text-sm text-wt-text-tertiary">
+                        <p>Type to search across tasks, events, and sessions</p>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="px-5 py-3 border-t border-wt-border-subtle flex items-center justify-between text-xs text-wt-text-tertiary">
+                    <div class="flex items-center gap-4">
+                        <span class="flex items-center gap-1">
+                            <kbd class="px-1.5 py-0.5 bg-wt-bg-page rounded text-[10px]">↑↓</kbd>
+                            <span>Navigate</span>
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <kbd class="px-1.5 py-0.5 bg-wt-bg-page rounded text-[10px]">Enter</kbd>
+                            <span>Select</span>
+                        </span>
+                    </div>
+                    <a href="/" class="flex items-center gap-1 text-wt-accent-indigo hover:underline">
+                        <i data-lucide="radar" class="w-3 h-3"></i>
+                        <span>Watchtower</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global search
+        let searchTimeout = null;
+        
+        function openSearchModal() {
+            const modal = document.getElementById('search-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('global-search-input').focus();
+            document.body.style.overflow = 'hidden';
+            lucide.createIcons();
+        }
+        
+        function closeSearchModal() {
+            const modal = document.getElementById('search-modal');
+            modal.classList.add('hidden');
+            document.getElementById('global-search-input').value = '';
+            document.getElementById('search-results').innerHTML = `
+                <div class="p-6 text-center text-sm text-wt-text-tertiary">
+                    <p>Type to search across tasks, events, and sessions</p>
+                </div>
+            `;
+            document.body.style.overflow = '';
+        }
+        
+        // Keyboard shortcut Cmd+K / Ctrl+K
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                openSearchModal();
+            }
+            if (e.key === 'Escape') {
+                closeSearchModal();
+            }
+        });
+        
+        // Search input handler
+        document.getElementById('global-search-input')?.addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                document.getElementById('search-results').innerHTML = `
+                    <div class="p-6 text-center text-sm text-wt-text-tertiary">
+                        <p>Type to search across tasks, events, and sessions</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Debounce
+            searchTimeout = setTimeout(() => performSearch(query), 300);
+        });
+        
+        async function performSearch(query) {
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = `
+                <div class="p-6 text-center text-sm text-wt-text-tertiary">
+                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline-block"></i>
+                    <span class="ml-2">Searching...</span>
+                </div>
+            `;
+            lucide.createIcons();
+            
+            try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                let html = '';
+                
+                // Tasks
+                if (data.tasks && data.tasks.length > 0) {
+                    html += `<div class="border-b border-wt-border-subtle">
+                        <div class="px-5 py-2 text-[10px] font-semibold uppercase text-wt-text-tertiary bg-wt-bg-page">Tasks</div>`;
+                    data.tasks.forEach(task => {
+                        html += `<a href="/board" class="flex items-center gap-3 px-5 py-3 hover:bg-wt-bg-page transition-colors cursor-pointer">
+                            <i data-lucide="git-branch" class="w-4 h-4 text-wt-accent-blue"></i>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-wt-text-primary truncate">${task.title}</p>
+                                <p class="text-xs text-wt-text-tertiary">${task.status} • ${task.priority}</p>
+                            </div>
+                        </a>`;
+                    });
+                    html += `</div>`;
+                }
+                
+                // Events
+                if (data.events && data.events.length > 0) {
+                    html += `<div class="border-b border-wt-border-subtle">
+                        <div class="px-5 py-2 text-[10px] font-semibold uppercase text-wt-text-tertiary bg-wt-bg-page">Events</div>`;
+                    data.events.forEach(event => {
+                        html += `<a href="/feed" class="flex items-center gap-3 px-5 py-3 hover:bg-wt-bg-page transition-colors cursor-pointer">
+                            <i data-lucide="activity" class="w-4 h-4 text-wt-accent-indigo"></i>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-wt-text-primary truncate">${event.summary}</p>
+                                <p class="text-xs text-wt-text-tertiary">${event.event_type}</p>
+                            </div>
+                        </a>`;
+                    });
+                    html += `</div>`;
+                }
+                
+                // Sessions
+                if (data.sessions && data.sessions.length > 0) {
+                    html += `<div>
+                        <div class="px-5 py-2 text-[10px] font-semibold uppercase text-wt-text-tertiary bg-wt-bg-page">Sessions</div>`;
+                    data.sessions.forEach(session => {
+                        html += `<a href="/sessions/${session.id}" class="flex items-center gap-3 px-5 py-3 hover:bg-wt-bg-page transition-colors cursor-pointer">
+                            <i data-lucide="history" class="w-4 h-4 text-wt-accent-green"></i>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-wt-text-primary truncate">${session.session_key}</p>
+                                <p class="text-xs text-wt-text-tertiary">${session.session_type} • ${session.model || 'unknown'}</p>
+                            </div>
+                        </a>`;
+                    });
+                    html += `</div>`;
+                }
+                
+                if (!html) {
+                    html = `<div class="p-6 text-center text-sm text-wt-text-tertiary">
+                        <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                        <p>No results found for "${query}"</p>
+                    </div>`;
+                }
+                
+                resultsContainer.innerHTML = html;
+                lucide.createIcons();
+            } catch (err) {
+                resultsContainer.innerHTML = `
+                    <div class="p-6 text-center text-sm text-wt-accent-red">
+                        <p>Search failed. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Close on click outside
+        document.getElementById('search-modal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSearchModal();
+            }
+        });
+    </script>
 
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none lg:bottom-6 lg:right-6"></div>

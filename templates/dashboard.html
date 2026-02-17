@@ -48,6 +48,33 @@
             </div>
         </div>
 
+        <!-- Service Health & Kompressor Row -->
+        <div class="grid lg:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
+            <!-- Service Health Widget -->
+            <div hx-get="/partials/service-health" hx-trigger="load, every 30s" hx-swap="innerHTML">
+                <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5 animate-pulse">
+                    <div class="h-4 bg-wt-bg-page rounded w-32 mb-4"></div>
+                    <div class="space-y-2">
+                        <div class="h-3 bg-wt-bg-page rounded w-full"></div>
+                        <div class="h-3 bg-wt-bg-page rounded w-3/4"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Kompressor Stats Widget -->
+            <div hx-get="/partials/kompressor-stats" hx-trigger="load, every 30s" hx-swap="innerHTML">
+                <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5 animate-pulse">
+                    <div class="h-4 bg-wt-bg-page rounded w-32 mb-4"></div>
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="h-10 bg-wt-bg-page rounded"></div>
+                        <div class="h-10 bg-wt-bg-page rounded"></div>
+                        <div class="h-10 bg-wt-bg-page rounded"></div>
+                        <div class="h-10 bg-wt-bg-page rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="grid lg:grid-cols-2 gap-4 lg:gap-6">
             <!-- Recent Activity -->
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">

@@ -702,3 +702,145 @@ pub async fn get_usage_stats(
         by_model,
     })
 }
+
+// ============================================================================
+// Search
+// ============================================================================
+
+pub async fn search_tasks(pool: &SqlitePool, query: &str) -> Result<Vec<Task>> {
+    let pattern = format!("%{}%", query);
+    
+    let tasks = sqlx::query_as::<_, Task>(
+        r#"
+        SELECT id, title, description, priority, status, labels, created_by, assigned_to, due_date, created_at, updated_at
+        FROM tasks
+        WHERE title LIKE ? OR description LIKE ?
+        ORDER BY updated_at DESC
+        LIMIT 10
+        "#
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(tasks)
+}
+
+pub async fn search_events(pool: &SqlitePool, query: &str) -> Result<Vec<Event>> {
+    let pattern = format!("%{}%", query);
+    
+    let events = sqlx::query_as::<_, Event>(
+        r#"
+        SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
+        FROM events
+        WHERE summary LIKE ? OR detail LIKE ?
+        ORDER BY created_at DESC
+        LIMIT 10
+        "#
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(events)
+}
+
+pub async fn search_sessions(pool: &SqlitePool, query: &str) -> Result<Vec<Session>> {
+    let pattern = format!("%{}%", query);
+    
+    let sessions = sqlx::query_as::<_, Session>(
+        r#"
+        SELECT id, session_key, title, session_type, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd, task_id, parent_session_id, started_at, ended_at
+        FROM sessions
+        WHERE session_key LIKE ? OR title LIKE ? OR model LIKE ?
+        ORDER BY started_at DESC
+        LIMIT 10
+        "#
+    )
+    .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(sessions)
+}
+
+// ============================================================================
+// Daily Costs
+// ============================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct DailyCostRow {
+    pub date: String,
+    pub cost_usd: f64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+pub async fn get_daily_costs(pool: &SqlitePool, days: i32) -> Result<Vec<DailyCostRow>> {
+    let costs = sqlx::query_as::<_, DailyCostRow>(
+        r#"
+        SELECT 
+            date,
+            SUM(cost_usd) as cost_usd,
+            SUM(input_tokens) as input_tokens,
+            SUM(output_tokens) as output_tokens
+        FROM usage_daily
+        WHERE date >= date('now', '-' || ? || ' days')
+        GROUP BY date
+        ORDER BY date DESC
+        "#
+    )
+    .bind(days)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(costs)
+}
+
+// ============================================================================
+// Cron Run History
+// ============================================================================
+
+pub async fn get_cron_run_history(pool: &SqlitePool, job_id: &str, limit: i32) -> Result<Vec<Event>> {
+    let events = sqlx::query_as::<_, Event>(
+        r#"
+        SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
+        FROM events
+        WHERE event_type IN ('cron', 'cron_run_requested', 'cron_run_completed', 'cron_run_failed')
+          AND (metadata LIKE ? OR summary LIKE ?)
+        ORDER BY created_at DESC
+        LIMIT ?
+        "#
+    )
+    .bind(format!("%{}%", job_id))
+    .bind(format!("%{}%", job_id))
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(events)
+}
+
+// ============================================================================
+// Events for Session
+// ============================================================================
+
+pub async fn get_events_for_session(pool: &SqlitePool, session_id: &str) -> Result<Vec<Event>> {
+    let events = sqlx::query_as::<_, Event>(
+        r#"
+        SELECT id, event_type, summary, detail, session_id, task_id, metadata, created_at
+        FROM events
+        WHERE session_id = ?
+        ORDER BY created_at ASC
+        "#
+    )
+    .bind(session_id)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(events)
+}

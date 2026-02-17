@@ -1,8 +1,10 @@
 use crate::db;
 use crate::models::*;
+use crate::service_health::{HealthChecker, ServicesHealth, get_kompressor_stats, KompressorStats};
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use tracing::error;
 
 /// Check session cookie authentication for web UI
@@ -140,6 +142,15 @@ struct SessionsTemplate {
     title: String,
     active_page: String,
     sessions: Vec<Session>,
+}
+
+#[derive(Template)]
+#[template(path = "session_detail.html")]
+struct SessionDetailTemplate {
+    title: String,
+    active_page: String,
+    session: Session,
+    events: Vec<Event>,
 }
 
 // ============================================================================
@@ -385,6 +396,49 @@ pub async fn sessions_page(
     }
 }
 
+#[get("/sessions/{id}")]
+pub async fn session_detail_page(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    path: web::Path<i64>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let id = path.into_inner();
+    
+    let session = match db::get_session(&pool, id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => return HttpResponse::NotFound().body("Session not found"),
+        Err(e) => {
+            error!("Failed to get session: {}", e);
+            return HttpResponse::InternalServerError().body("Database error");
+        }
+    };
+    
+    // Get events for this session
+    let events = db::get_events_for_session(&pool, &session.session_key)
+        .await
+        .unwrap_or_default();
+    
+    let template = SessionDetailTemplate {
+        title: format!("Session: {}", session.session_key),
+        active_page: "sessions".to_string(),
+        session,
+        events,
+    };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
 // ============================================================================
 // HTMX Partials
 // ============================================================================
@@ -555,6 +609,145 @@ pub async fn task_detail_partial(
         comments,
         history,
     };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Service Health Partial
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "partials/service_health.html")]
+struct ServiceHealthTemplate {
+    health: ServicesHealth,
+}
+
+#[get("/partials/service-health")]
+pub async fn service_health_partial(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+    health_checker: web::Data<Arc<HealthChecker>>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let health = health_checker.get_health().await;
+    
+    let template = ServiceHealthTemplate { health };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Kompressor Stats Partial
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "partials/kompressor_stats.html")]
+struct KompressorStatsTemplate {
+    stats: KompressorStats,
+}
+
+#[get("/partials/kompressor-stats")]
+pub async fn kompressor_stats_partial(
+    req: HttpRequest,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let stats = get_kompressor_stats().await;
+    
+    let template = KompressorStatsTemplate { stats };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Costs Chart Partial
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "partials/costs_chart.html")]
+struct CostsChartTemplate {
+    costs: Vec<db::DailyCostRow>,
+    max_cost: f64,
+}
+
+#[get("/partials/costs-chart")]
+pub async fn costs_chart_partial(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let costs = db::get_daily_costs(&pool, 14).await.unwrap_or_default();
+    let max_cost = costs.iter().map(|c| c.cost_usd).fold(0.0_f64, |a, b| a.max(b));
+    
+    let template = CostsChartTemplate { 
+        costs,
+        max_cost: if max_cost == 0.0 { 1.0 } else { max_cost },
+    };
+    
+    match template.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(e) => {
+            error!("Template error: {}", e);
+            HttpResponse::InternalServerError().body("Template error")
+        }
+    }
+}
+
+// ============================================================================
+// Cron History Partial
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "partials/cron_history.html")]
+struct CronHistoryTemplate {
+    job_id: String,
+    events: Vec<Event>,
+}
+
+#[get("/partials/cron/{job_id}/history")]
+pub async fn cron_history_partial(
+    req: HttpRequest,
+    pool: web::Data<SqlitePool>,
+    config: web::Data<crate::Config>,
+    path: web::Path<String>,
+) -> impl Responder {
+    if let Some(resp) = require_web_auth(&req, &config) {
+        return resp;
+    }
+    
+    let job_id = path.into_inner();
+    let events = db::get_cron_run_history(&pool, &job_id, 5).await.unwrap_or_default();
+    
+    let template = CronHistoryTemplate { job_id, events };
     
     match template.render() {
         Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),

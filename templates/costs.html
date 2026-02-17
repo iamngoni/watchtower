@@ -27,6 +27,14 @@
             </div>
         </div>
 
+        <!-- Daily Cost Chart -->
+        <div class="mb-8" hx-get="/partials/costs-chart" hx-trigger="load" hx-swap="innerHTML">
+            <div class="bg-wt-bg-card rounded-2xl border border-wt-border-subtle p-5 animate-pulse">
+                <div class="h-4 bg-wt-bg-page rounded w-48 mb-4"></div>
+                <div class="h-40 bg-wt-bg-page rounded"></div>
+            </div>
+        </div>
+
         <!-- Usage by Model -->
         <div class="bg-wt-bg-card rounded-2xl border border-wt-border-subtle overflow-hidden">
             <div class="p-4 lg:p-6 border-b border-wt-border-subtle">

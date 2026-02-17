@@ -1,0 +1,47 @@
+{% if stats.available %}
+<div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle overflow-hidden">
+    <div class="px-4 lg:px-5 py-3 lg:py-4 border-b border-wt-border-subtle flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <i data-lucide="shrink" class="w-4 h-4 text-wt-accent-indigo"></i>
+            <h2 class="font-display text-sm lg:text-base font-bold text-wt-text-primary">Kompressor</h2>
+        </div>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-wt-accent-green-light text-wt-accent-green font-medium">{{ stats.encoder }}</span>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 lg:p-5">
+        <div class="text-center">
+            <p class="text-lg lg:text-xl font-bold text-wt-accent-green" data-format-gb="{{ stats.space_saved_gb }}">{{ stats.space_saved_gb }} GB</p>
+            <p class="text-[10px] lg:text-xs text-wt-text-tertiary">Space Saved</p>
+        </div>
+        <div class="text-center">
+            <p class="text-lg lg:text-xl font-bold text-wt-text-primary">{{ stats.processed }}</p>
+            <p class="text-[10px] lg:text-xs text-wt-text-tertiary">Processed</p>
+        </div>
+        <div class="text-center">
+            <p class="text-lg lg:text-xl font-bold text-wt-accent-orange">{{ stats.pending }}</p>
+            <p class="text-[10px] lg:text-xs text-wt-text-tertiary">Pending</p>
+        </div>
+        <div class="text-center">
+            <p class="text-lg lg:text-xl font-bold {% if stats.active > 0 %}text-wt-accent-blue{% else %}text-wt-text-tertiary{% endif %}">{{ stats.active }}</p>
+            <p class="text-[10px] lg:text-xs text-wt-text-tertiary">Active</p>
+        </div>
+    </div>
+    {% if stats.failed > 0 || stats.cancelled > 0 %}
+    <div class="px-4 lg:px-5 pb-4 lg:pb-5 flex items-center gap-4 text-xs">
+        {% if stats.failed > 0 %}
+        <span class="text-wt-accent-red">{{ stats.failed }} failed</span>
+        {% endif %}
+        {% if stats.cancelled > 0 %}
+        <span class="text-wt-text-tertiary">{{ stats.cancelled }} cancelled</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="bg-wt-bg-card rounded-xl lg:rounded-2xl border border-wt-border-subtle p-5">
+    <div class="flex items-center gap-3 text-wt-text-tertiary">
+        <i data-lucide="shrink" class="w-5 h-5"></i>
+        <span class="text-sm">Kompressor unavailable</span>
+    </div>
+</div>
+{% endif %}
+<script>lucide.createIcons();</script>
