@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-8">
+        <div class="flex items-center gap-3">
+            <h1 class="font-display text-xl font-bold text-wt-text-primary">Cron Jobs</h1>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto">
+        {% if jobs.is_empty() %}
+        <div class="flex flex-col items-center justify-center h-full text-center">
+            <i data-lucide="clock" class="w-16 h-16 text-wt-text-tertiary mb-4"></i>
+            <h2 class="text-lg font-semibold text-wt-text-primary mb-2">No cron jobs</h2>
+            <p class="text-sm text-wt-text-secondary">Cron jobs will appear here when synced from OpenClaw</p>
+        </div>
+        {% else %}
+        <div class="divide-y divide-wt-border-subtle">
+            {% for job in jobs %}
+            <div class="flex items-center gap-3 px-8 py-4 hover:bg-wt-bg-sidebar/50">
+                <!-- Status indicator -->
+                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0
+                    {% if job.enabled == 0 %}bg-wt-text-tertiary{% elif job.consecutive_errors > 0 %}bg-wt-accent-red{% else %}bg-wt-accent-green{% endif %}"></div>
+                
+                <!-- Name -->
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-wt-text-primary truncate">{{ job.name }}</p>
+                    <p class="text-xs text-wt-text-tertiary">{{ job.schedule }}</p>
+                </div>
+                
+                <!-- Last run -->
+                <div class="text-right">
+                    <p class="text-xs text-wt-text-secondary">Last run</p>
+                    <p class="text-xs text-wt-text-tertiary">
+                        {% match job.last_run_at %}
+                        {% when Some with (ts) %}{{ ts }}{% when None %}Never{% endmatch %}
+                    </p>
+                </div>
+                
+                <!-- Next run -->
+                <div class="text-right">
+                    <p class="text-xs text-wt-text-secondary">Next run</p>
+                    <p class="text-xs text-wt-text-tertiary">
+                        {% match job.next_run_at %}
+                        {% when Some with (ts) %}{{ ts }}{% when None %}—{% endmatch %}
+                    </p>
+                </div>
+                
+                <!-- Status badge -->
+                <div class="w-20 text-right">
+                    {% match job.last_status %}
+                    {% when Some with (status) %}
+                    <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold
+                        {% if status == "success" %}bg-wt-accent-green-light text-wt-accent-green{% elif status == "failed" %}bg-wt-accent-red-light text-wt-accent-red{% else %}bg-wt-bg-card text-wt-text-tertiary{% endif %}">{{ status }}</span>
+                    {% when None %}
+                    <span class="inline-flex px-2 py-1 rounded-full text-[10px] font-semibold bg-wt-bg-card text-wt-text-tertiary">pending</span>
+                    {% endmatch %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

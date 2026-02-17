@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-8">
+        <div class="flex items-center gap-3">
+            <h1 class="font-display text-xl font-bold text-wt-text-primary">Kanban Board</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="openCreateTaskModal()" class="flex items-center gap-2 bg-wt-accent-indigo text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-wt-accent-indigo/90 transition-colors">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                New Task
+            </button>
+        </div>
+    </header>
+
+    <!-- Board -->
+    <div class="flex-1 overflow-x-auto p-6" hx-ext="sse" sse-connect="/events/stream">
+        <div class="flex gap-4 h-full min-w-max">
+            <!-- Backlog Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">Backlog</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_backlog.len() }}</span>
+                    </div>
+                    <button class="text-wt-text-tertiary hover:text-wt-text-secondary">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="backlog">
+                    {% for task in tasks_backlog %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- To Do Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">To Do</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_todo.len() }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="todo">
+                    {% for task in tasks_todo %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- In Progress Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">In Progress</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_in_progress.len() }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="in_progress">
+                    {% for task in tasks_in_progress %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Blocked Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">Blocked</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_blocked.len() }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="blocked">
+                    {% for task in tasks_blocked %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- In Review Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">In Review</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_in_review.len() }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="in_review">
+                    {% for task in tasks_in_review %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Done Column -->
+            <div class="w-72 flex flex-col">
+                <div class="flex items-center justify-between pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-wt-text-primary">Done</span>
+                        <span class="w-6 h-6 rounded-full bg-wt-bg-card text-xs font-semibold text-wt-text-tertiary flex items-center justify-center">{{ tasks_done.len() }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-wt-bg-card rounded-xl p-2 space-y-2 kanban-column" data-status="done">
+                    {% for task in tasks_done %}
+                    {% include "partials/task_card.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Task Modal -->
+<div id="create-task-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-wt-bg-sidebar rounded-2xl p-6 w-full max-w-md border border-wt-border-subtle">
+        <h2 class="font-display text-lg font-bold text-wt-text-primary mb-4">Create Task</h2>
+        <form id="create-task-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-wt-text-secondary mb-1">Title</label>
+                <input type="text" name="title" required class="w-full bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary placeholder-wt-text-tertiary outline-none focus:border-wt-accent-indigo">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-wt-text-secondary mb-1">Description</label>
+                <textarea name="description" rows="3" class="w-full bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary placeholder-wt-text-tertiary outline-none focus:border-wt-accent-indigo"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-wt-text-secondary mb-1">Priority</label>
+                    <select name="priority" class="w-full bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary outline-none focus:border-wt-accent-indigo">
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-wt-text-secondary mb-1">Assign To</label>
+                    <select name="assigned_to" class="w-full bg-wt-bg-card border border-wt-border-default rounded-lg px-3 py-2 text-sm text-wt-text-primary outline-none focus:border-wt-accent-indigo">
+                        <option value="unassigned">Unassigned</option>
+                        <option value="human">Human</option>
+                        <option value="agent">Agent</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4">
+                <button type="button" onclick="closeCreateTaskModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-wt-text-secondary hover:bg-wt-bg-card">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-wt-accent-indigo text-white hover:bg-wt-accent-indigo/90">Create</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize Sortable for each column
+    document.querySelectorAll('.kanban-column').forEach(column => {
+        new Sortable(column, {
+            group: 'kanban',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: function(evt) {
+                const taskId = evt.item.dataset.taskId;
+                const newStatus = evt.to.dataset.status;
+                
+                // Send PATCH request to update task status
+                fetch(`/api/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        status: newStatus,
+                        changed_by: 'human'
+                    })
+                });
+            }
+        });
+    });
+
+    function openCreateTaskModal() {
+        document.getElementById('create-task-modal').classList.remove('hidden');
+        document.getElementById('create-task-modal').classList.add('flex');
+    }
+
+    function closeCreateTaskModal() {
+        document.getElementById('create-task-modal').classList.add('hidden');
+        document.getElementById('create-task-modal').classList.remove('flex');
+    }
+
+    document.getElementById('create-task-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+        
+        await fetch('/api/tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ...data,
+                status: 'backlog',
+                created_by: 'human'
+            })
+        });
+        
+        closeCreateTaskModal();
+        window.location.reload();
+    });
+
+    // Re-initialize icons
+    lucide.createIcons();
+</script>
+{% endblock %}

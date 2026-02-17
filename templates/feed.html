@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="h-16 border-b border-wt-border-subtle flex items-center justify-between px-8">
+        <div class="flex items-center gap-3">
+            <h1 class="font-display text-xl font-bold text-wt-text-primary">Live Activity Feed</h1>
+            <div class="flex items-center gap-2 bg-wt-accent-green-light px-3 py-1 rounded-full">
+                <div class="w-2 h-2 bg-wt-accent-green rounded-full animate-pulse-live"></div>
+                <span class="text-xs font-semibold text-wt-accent-green">Live</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 bg-wt-bg-card rounded-lg px-3 py-2 w-60">
+                <i data-lucide="search" class="w-4 h-4 text-wt-text-tertiary"></i>
+                <input type="text" placeholder="Search events..." class="bg-transparent text-sm text-wt-text-primary placeholder-wt-text-tertiary outline-none flex-1">
+            </div>
+        </div>
+    </header>
+
+    <!-- Filter Bar -->
+    <div class="border-b border-wt-border-subtle bg-wt-bg-sidebar px-8 py-3 flex items-center gap-2">
+        <button class="px-4 py-1.5 rounded-full text-xs font-semibold bg-wt-accent-indigo text-white" data-filter="all">All</button>
+        <button class="px-4 py-1.5 rounded-full text-xs font-medium bg-wt-bg-card text-wt-text-secondary border border-wt-border-default hover:border-wt-border-subtle" data-filter="tool_call">Tool Calls</button>
+        <button class="px-4 py-1.5 rounded-full text-xs font-medium bg-wt-bg-card text-wt-text-secondary border border-wt-border-default hover:border-wt-border-subtle" data-filter="file">File Ops</button>
+        <button class="px-4 py-1.5 rounded-full text-xs font-medium bg-wt-bg-card text-wt-text-secondary border border-wt-border-default hover:border-wt-border-subtle" data-filter="shell">Shell</button>
+        <button class="px-4 py-1.5 rounded-full text-xs font-medium bg-wt-bg-card text-wt-text-secondary border border-wt-border-default hover:border-wt-border-subtle" data-filter="api">API</button>
+        <button class="px-4 py-1.5 rounded-full text-xs font-medium bg-wt-bg-card text-wt-text-secondary border border-wt-border-default hover:border-wt-border-subtle" data-filter="alert">Alerts</button>
+    </div>
+
+    <!-- Events List (SSE connected) -->
+    <div class="flex-1 overflow-y-auto" hx-ext="sse" sse-connect="/events/stream">
+        <div id="events-container" class="px-8" sse-swap="event" hx-swap="afterbegin">
+            {% for event in events %}
+            {% include "partials/event_item.html" %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Re-initialize icons when new events arrive
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        lucide.createIcons();
+    });
+</script>
+{% endblock %}

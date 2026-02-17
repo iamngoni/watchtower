@@ -1,0 +1,29 @@
+# Add this to your docker-compose.yml
+# Service name is 'watchtower-dashboard' to avoid conflict with containrrr/watchtower
+
+services:
+  watchtower-dashboard:
+    image: watchtower:latest
+    container_name: watchtower-dashboard
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./watchtower/data:/data
+      - /tmp/clawdbot:/logs:ro
+    environment:
+      - PORT=3002
+      - DATABASE_URL=sqlite:/data/watchtower.db
+      - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN}
+      - WATCHTOWER_USER=${DASHBOARD_USER}
+      - WATCHTOWER_PASS=${DASHBOARD_PASS}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=6723148696
+    restart: unless-stopped
+    networks:
+      - homelab
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

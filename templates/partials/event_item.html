@@ -1,0 +1,19 @@
+<div class="flex gap-3 py-4 border-b border-wt-border-subtle event-item" data-event-type="{{ event.event_type }}">
+    <!-- Icon -->
+    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 event-icon-wrap">
+        <i data-lucide="activity" class="w-4 h-4 event-icon"></i>
+    </div>
+    
+    <!-- Content -->
+    <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between gap-4">
+            <span class="text-sm font-semibold text-wt-text-primary truncate">{{ event.summary }}</span>
+            <span class="text-xs font-medium text-wt-text-tertiary whitespace-nowrap" data-timestamp="{{ event.created_at }}"></span>
+        </div>
+        {% match event.detail %}
+        {% when Some with (detail) %}
+        <p class="text-xs text-wt-text-secondary mt-1 truncate">{{ detail }}</p>
+        {% when None %}
+        {% endmatch %}
+    </div>
+</div>
