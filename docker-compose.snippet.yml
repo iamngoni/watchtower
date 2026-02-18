@@ -17,7 +17,7 @@ services:
       - WATCHTOWER_USER=${DASHBOARD_USER}
       - WATCHTOWER_PASS=${DASHBOARD_PASS}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=6723148696
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     restart: unless-stopped
     networks:
       - homelab
