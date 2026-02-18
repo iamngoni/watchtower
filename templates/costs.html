@@ -35,6 +35,72 @@
             </div>
         </div>
 
+        <!-- Weekly Cost Trends -->
+        {% if !weekly_trends.is_empty() %}
+        <div class="mb-8">
+            <div class="bg-wt-bg-card rounded-2xl border border-wt-border-subtle overflow-hidden">
+                <div class="px-5 py-4 border-b border-wt-border-subtle">
+                    <h2 class="font-display text-lg font-bold text-wt-text-primary">Weekly Trends</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="border-b border-wt-border-subtle bg-wt-bg-sidebar/50">
+                                <th class="text-left py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase">Week</th>
+                                <th class="text-right py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase">Total Cost</th>
+                                <th class="text-right py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase">Avg/Day</th>
+                                <th class="text-right py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase">Tokens</th>
+                                <th class="text-right py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase">WoW Change</th>
+                                <th class="py-3 px-5 text-xs font-semibold text-wt-text-tertiary uppercase w-32">Spend</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-wt-border-subtle">
+                            {% for week in weekly_trends %}
+                            <tr class="hover:bg-wt-bg-sidebar/50">
+                                <td class="py-3.5 px-5">
+                                    <p class="text-sm font-medium text-wt-text-primary">{{ week.week_label }}</p>
+                                    <p class="text-[10px] text-wt-text-tertiary">{{ week.days_label }}</p>
+                                </td>
+                                <td class="py-3.5 px-5 text-right">
+                                    <span class="text-sm font-bold text-wt-text-primary" data-format-currency="{{ week.total_cost }}">$0</span>
+                                </td>
+                                <td class="py-3.5 px-5 text-right">
+                                    <span class="text-sm text-wt-text-secondary" data-format-currency="{{ week.avg_daily_cost }}">$0</span>
+                                </td>
+                                <td class="py-3.5 px-5 text-right">
+                                    <span class="text-sm text-wt-text-secondary" data-format-number="{{ week.total_tokens }}">0</span>
+                                </td>
+                                <td class="py-3.5 px-5 text-right">
+                                    {% if week.wow_color == "red" %}
+                                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-wt-accent-red">
+                                        <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+                                        {{ week.wow_display }}
+                                    </span>
+                                    {% else %}
+                                        {% if week.wow_color == "green" %}
+                                        <span class="inline-flex items-center gap-1 text-xs font-semibold text-wt-accent-green">
+                                            <i data-lucide="trending-down" class="w-3.5 h-3.5"></i>
+                                            {{ week.wow_display }}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-xs text-wt-text-tertiary">{{ week.wow_display }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td class="py-3.5 px-5">
+                                    <div class="h-2 bg-wt-bg-page rounded-full overflow-hidden">
+                                        <div class="h-full bg-wt-accent-indigo rounded-full weekly-bar" data-cost="{{ week.total_cost }}"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Model Comparison Cards -->
         {% if !stats.by_model.is_empty() %}
         <div class="mb-8">
@@ -283,5 +349,18 @@
     
     // Run after DOM is ready
     updateModelVisualization();
+    
+    // Weekly trend bars
+    const weeklyBars = document.querySelectorAll('.weekly-bar');
+    let maxWeeklyCost = 0;
+    weeklyBars.forEach(bar => {
+        const cost = parseFloat(bar.dataset.cost) || 0;
+        if (cost > maxWeeklyCost) maxWeeklyCost = cost;
+    });
+    weeklyBars.forEach(bar => {
+        const cost = parseFloat(bar.dataset.cost) || 0;
+        const pct = maxWeeklyCost > 0 ? (cost / maxWeeklyCost * 100) : 0;
+        bar.style.width = Math.max(pct, 3) + '%';
+    });
 </script>
 {% endblock %}

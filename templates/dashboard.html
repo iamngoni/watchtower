@@ -134,6 +134,73 @@
             </div>
         </div>
 
+        <!-- Agent Performance Metrics -->
+        {% if perf.total_runs > 0 %}
+        <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-bold text-wt-text-primary flex items-center gap-2">
+                    <i data-lucide="gauge" class="w-4 h-4 text-wt-accent-indigo"></i>
+                    Agent Performance
+                </h3>
+                <span class="text-[10px] text-wt-text-tertiary">{{ perf.total_runs }} runs tracked</span>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <!-- Avg Response Time -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">Avg Response</p>
+                    <p class="font-display text-lg font-bold text-wt-text-primary perf-duration" data-ms="{{ perf.avg_response_ms }}"></p>
+                </div>
+                <!-- Median Response -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">Median (P50)</p>
+                    <p class="font-display text-lg font-bold text-wt-text-primary perf-duration" data-ms="{{ perf.median_response_ms }}"></p>
+                </div>
+                <!-- P95 -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">P95</p>
+                    <p class="font-display text-lg font-bold text-wt-accent-orange perf-duration" data-ms="{{ perf.p95_response_ms }}"></p>
+                </div>
+                <!-- Error Rate -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">Error Rate</p>
+                    <p class="font-display text-lg font-bold {% if perf.error_rate_pct > 10.0 %}text-wt-accent-red{% else %}{% if perf.error_rate_pct > 5.0 %}text-wt-accent-orange{% else %}text-wt-accent-green{% endif %}{% endif %}">
+                        {{ perf.error_rate_pct|fmt("{:.1}") }}%
+                    </p>
+                    <p class="text-[9px] text-wt-text-tertiary">{{ perf.error_count }} errors / {{ perf.total_events }} events</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <!-- Tool Success Rate -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">Tool Success</p>
+                    <p class="font-display text-lg font-bold text-wt-accent-green">{{ perf.tool_success_rate_pct|fmt("{:.1}") }}%</p>
+                    <p class="text-[9px] text-wt-text-tertiary">{{ perf.tool_calls }} calls</p>
+                </div>
+                <!-- Min/Max Response -->
+                <div class="bg-wt-bg-page rounded-lg p-3">
+                    <p class="text-[10px] text-wt-text-tertiary mb-1">Min / Max</p>
+                    <p class="text-xs font-medium text-wt-text-secondary">
+                        <span class="perf-duration-inline" data-ms="{{ perf.min_response_ms }}"></span> / 
+                        <span class="perf-duration-inline" data-ms="{{ perf.max_response_ms }}"></span>
+                    </p>
+                </div>
+                <!-- Daily Sparkline -->
+                <div class="bg-wt-bg-page rounded-lg p-3 col-span-2">
+                    <p class="text-[10px] text-wt-text-tertiary mb-2">Daily Activity (7d)</p>
+                    <div class="flex items-end gap-1 h-8">
+                        {% for day in perf.daily_runs %}
+                        <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
+                            <div class="w-full bg-wt-accent-indigo/60 rounded-t-sm daily-sparkline-bar" data-count="{{ day.1 }}" title="{{ day.0 }}: {{ day.1 }} events"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Stat Cards - 2x2 on mobile, 4 columns on desktop -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6 lg:mb-8">
             <div class="bg-wt-bg-card rounded-xl lg:rounded-2xl p-4 lg:p-5 border border-wt-border-subtle">
@@ -382,6 +449,29 @@
 <script>
     formatAllTimestamps();
     formatAllNumbers();
+    
+    // Format duration values
+    function formatDuration(ms) {
+        if (ms >= 60000) return (ms / 60000).toFixed(1) + 'm';
+        if (ms >= 1000) return (ms / 1000).toFixed(1) + 's';
+        return Math.round(ms) + 'ms';
+    }
+    document.querySelectorAll('.perf-duration').forEach(el => {
+        el.textContent = formatDuration(parseFloat(el.dataset.ms) || 0);
+    });
+    document.querySelectorAll('.perf-duration-inline').forEach(el => {
+        el.textContent = formatDuration(parseFloat(el.dataset.ms) || 0);
+    });
+    
+    // Daily sparkline bars
+    const sparkBars = document.querySelectorAll('.daily-sparkline-bar');
+    let maxSparkCount = 0;
+    sparkBars.forEach(b => { maxSparkCount = Math.max(maxSparkCount, parseInt(b.dataset.count) || 0); });
+    sparkBars.forEach(b => {
+        const count = parseInt(b.dataset.count) || 0;
+        const pct = maxSparkCount > 0 ? (count / maxSparkCount * 100) : 0;
+        b.style.height = Math.max(pct, 5) + '%';
+    });
     
     // Quick task creation
     document.getElementById('quick-task-form')?.addEventListener('submit', async function(e) {

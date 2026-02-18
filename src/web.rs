@@ -3,6 +3,8 @@ use crate::gateway_client;
 use crate::models::*;
 use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use askama::Template;
+use chrono::Datelike;
+use serde::Serialize;
 use sqlx::SqlitePool;
 use tracing::{error, warn};
 
@@ -176,6 +178,234 @@ fn gateway_costs_to_stats(data: &serde_json::Value) -> UsageStats {
     }
 }
 
+// ============================================================================
+// Weekly Cost Trends
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WeeklyCostTrend {
+    pub week_label: String,
+    pub week_start: String,
+    pub total_cost: f64,
+    pub total_tokens: i64,
+    pub days: usize,
+    pub days_label: String,
+    pub avg_daily_cost: f64,
+    pub wow_change_pct: Option<f64>,
+    pub wow_display: String,       // Pre-formatted "+12.3%" or "-5.1%" or "—"
+    pub wow_color: String,         // "red", "green", or "neutral"
+}
+
+fn gateway_weekly_trends(data: &serde_json::Value) -> Vec<WeeklyCostTrend> {
+    let daily = data.get("daily").and_then(|v| v.as_array());
+    let Some(daily) = daily else { return vec![] };
+    
+    // Group by ISO week (Monday start)
+    let mut weeks: std::collections::BTreeMap<String, (f64, i64, usize, String, String)> = std::collections::BTreeMap::new();
+    
+    for d in daily {
+        let date_str = d.get("date").and_then(|v| v.as_str()).unwrap_or("");
+        let cost = d.get("totalCost").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let tokens = d.get("totalTokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+            let week_start = date - chrono::Duration::days(date.weekday().num_days_from_monday() as i64);
+            let week_end = week_start + chrono::Duration::days(6);
+            let key = week_start.format("%Y-%m-%d").to_string();
+            let label = format!("{} – {}", week_start.format("%b %d"), week_end.format("%b %d"));
+            
+            let entry = weeks.entry(key.clone()).or_insert((0.0, 0, 0, label, key));
+            entry.0 += cost;
+            entry.1 += tokens;
+            entry.2 += 1;
+        }
+    }
+    
+    let mut result: Vec<WeeklyCostTrend> = Vec::new();
+    let mut prev_cost: Option<f64> = None;
+    
+    for (_key, (cost, tokens, days, label, start)) in &weeks {
+        let wow = prev_cost.map(|prev| {
+            if prev > 0.0 { ((cost - prev) / prev) * 100.0 } else { 0.0 }
+        });
+        
+        let (wow_display, wow_color) = match wow {
+            Some(pct) if pct > 5.0 => (format!("+{:.1}%", pct), "red".to_string()),
+            Some(pct) if pct < -5.0 => (format!("{:.1}%", pct), "green".to_string()),
+            Some(pct) => (format!("{:+.1}%", pct), "neutral".to_string()),
+            None => ("—".to_string(), "neutral".to_string()),
+        };
+        
+        result.push(WeeklyCostTrend {
+            week_label: label.clone(),
+            week_start: start.clone(),
+            total_cost: *cost,
+            total_tokens: *tokens,
+            days_label: if *days == 1 { "1 day".to_string() } else { format!("{} days", days) },
+            days: *days,
+            avg_daily_cost: if *days > 0 { cost / *days as f64 } else { 0.0 },
+            wow_change_pct: wow,
+            wow_display,
+            wow_color,
+        });
+        
+        // Only use full weeks (7 days) for WoW comparison
+        if *days >= 5 {
+            prev_cost = Some(*cost);
+        }
+    }
+    
+    result
+}
+
+// ============================================================================
+// Agent Performance Metrics
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct AgentPerformanceMetrics {
+    pub total_runs: i64,
+    pub avg_response_ms: f64,
+    pub median_response_ms: f64,
+    pub p95_response_ms: f64,
+    pub min_response_ms: f64,
+    pub max_response_ms: f64,
+    pub total_events: i64,
+    pub error_count: i64,
+    pub warning_count: i64,
+    pub error_rate_pct: f64,
+    pub tool_calls: i64,
+    pub tool_success_rate_pct: f64,
+    pub shell_commands: i64,
+    pub file_operations: i64,
+    pub api_calls: i64,
+    pub messages_sent: i64,
+    // Per-day breakdown for sparkline
+    pub daily_runs: Vec<(String, i64)>,
+    pub daily_errors: Vec<(String, i64)>,
+    pub daily_response_ms: Vec<(String, f64)>,
+}
+
+async fn compute_performance_metrics(pool: &SqlitePool) -> AgentPerformanceMetrics {
+    let mut metrics = AgentPerformanceMetrics::default();
+    
+    // Get agent run durations
+    let durations: Vec<f64> = sqlx::query_scalar::<_, f64>(
+        r#"SELECT CAST(json_extract(metadata, '$.duration_ms') AS REAL)
+           FROM events 
+           WHERE event_type = 'shell_result' 
+             AND json_extract(metadata, '$.duration_ms') IS NOT NULL
+             AND json_extract(metadata, '$.duration_ms') > 0
+           ORDER BY json_extract(metadata, '$.duration_ms')"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    
+    // Also get agent run completions with duration from summary
+    let agent_durations: Vec<f64> = sqlx::query_scalar::<_, String>(
+        r#"SELECT detail FROM events 
+           WHERE event_type = 'agent' 
+             AND summary LIKE '%completed%'"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default()
+    .iter()
+    .filter_map(|detail| {
+        // Extract durationMs= from detail
+        detail.split("durationMs=").nth(1)
+            .and_then(|s| s.split_whitespace().next())
+            .and_then(|s| s.parse::<f64>().ok())
+    })
+    .filter(|d| *d > 0.0)
+    .collect();
+    
+    if !agent_durations.is_empty() {
+        let mut sorted = agent_durations.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        
+        metrics.total_runs = sorted.len() as i64;
+        metrics.avg_response_ms = sorted.iter().sum::<f64>() / sorted.len() as f64;
+        metrics.min_response_ms = sorted.first().copied().unwrap_or(0.0);
+        metrics.max_response_ms = sorted.last().copied().unwrap_or(0.0);
+        metrics.median_response_ms = sorted[sorted.len() / 2];
+        metrics.p95_response_ms = sorted[(sorted.len() as f64 * 0.95) as usize].min(metrics.max_response_ms);
+    }
+    
+    // Event counts by type
+    let type_counts: Vec<(String, i64)> = sqlx::query_as::<_, (String, i64)>(
+        "SELECT event_type, count(*) FROM events GROUP BY event_type"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    
+    for (etype, count) in &type_counts {
+        metrics.total_events += count;
+        match etype.as_str() {
+            "alert" => metrics.error_count += count,
+            "warning" => metrics.warning_count += count,
+            "shell" | "shell_result" => metrics.shell_commands += count,
+            "file" | "file_result" => metrics.file_operations += count,
+            "api" | "api_result" => metrics.api_calls += count,
+            "message" | "message_result" => metrics.messages_sent += count,
+            _ => {}
+        }
+    }
+    
+    if metrics.total_events > 0 {
+        metrics.error_rate_pct = (metrics.error_count as f64 / metrics.total_events as f64) * 100.0;
+    }
+    
+    // Tool success rate
+    let tool_results: Vec<(String, i64)> = sqlx::query_as::<_, (String, i64)>(
+        r#"SELECT json_extract(metadata, '$.status') as status, count(*) 
+           FROM events 
+           WHERE event_type LIKE '%_result' 
+             AND json_extract(metadata, '$.status') IS NOT NULL
+           GROUP BY status"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    
+    let total_tool_results: i64 = tool_results.iter().map(|(_, c)| c).sum();
+    let successful_tool_results: i64 = tool_results.iter()
+        .filter(|(s, _)| s == "completed")
+        .map(|(_, c)| *c)
+        .sum();
+    metrics.tool_calls = total_tool_results;
+    if total_tool_results > 0 {
+        metrics.tool_success_rate_pct = (successful_tool_results as f64 / total_tool_results as f64) * 100.0;
+    }
+    
+    // Daily breakdown (last 7 days)
+    let daily_stats: Vec<(String, i64, i64, f64)> = sqlx::query_as::<_, (String, i64, i64, f64)>(
+        r#"SELECT 
+             date(created_at, 'unixepoch') as day,
+             count(*) as events,
+             sum(CASE WHEN event_type IN ('alert', 'warning') THEN 1 ELSE 0 END) as errors,
+             COALESCE(avg(CASE WHEN event_type = 'shell_result' AND json_extract(metadata, '$.duration_ms') > 0 
+                THEN json_extract(metadata, '$.duration_ms') END), 0) as avg_ms
+           FROM events 
+           GROUP BY day 
+           ORDER BY day DESC 
+           LIMIT 7"#
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    
+    for (day, events, errors, avg_ms) in daily_stats.into_iter().rev() {
+        metrics.daily_runs.push((day.clone(), events));
+        metrics.daily_errors.push((day.clone(), errors));
+        metrics.daily_response_ms.push((day, avg_ms));
+    }
+    
+    metrics
+}
+
 /// Check session cookie authentication for web UI
 fn check_web_auth(req: &HttpRequest, config: &crate::Config) -> bool {
     if config.web_user.is_empty() || config.web_pass.is_empty() {
@@ -285,6 +515,8 @@ struct DashboardTemplate {
     recent_events: Vec<Event>,
     blocked_tasks: Vec<Task>,
     failed_cron_jobs: Vec<CronJob>,
+    // Performance metrics
+    perf: AgentPerformanceMetrics,
 }
 
 #[derive(Template)]
@@ -329,6 +561,7 @@ struct CostsTemplate {
     title: String,
     active_page: String,
     stats: UsageStats,
+    weekly_trends: Vec<WeeklyCostTrend>,
 }
 
 #[derive(Template)]
@@ -509,6 +742,7 @@ pub async fn index(
         recent_events,
         blocked_tasks,
         failed_cron_jobs,
+        perf: compute_performance_metrics(&pool).await,
     };
     
     match template.render() {
@@ -600,22 +834,23 @@ pub async fn costs_page(
         return resp;
     }
     
-    let stats = if let Some(gw) = gateway_client::get_gateway_client() {
+    let (stats, weekly_trends) = if let Some(gw) = gateway_client::get_gateway_client() {
         match gw.get_costs().await {
-            Ok(data) => gateway_costs_to_stats(&data),
+            Ok(data) => (gateway_costs_to_stats(&data), gateway_weekly_trends(&data)),
             Err(e) => {
                 warn!("Gateway costs unavailable: {}", e);
-                db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] })
+                (db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] }), vec![])
             }
         }
     } else {
-        db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] })
+        (db::get_usage_stats(&pool, None, None).await.unwrap_or_else(|_| UsageStats { total_input_tokens: 0, total_output_tokens: 0, total_cost_usd: 0.0, by_model: vec![] }), vec![])
     };
     
     let template = CostsTemplate {
         title: "Usage & Costs".to_string(),
         active_page: "costs".to_string(),
         stats,
+        weekly_trends,
     };
     
     match template.render() {
