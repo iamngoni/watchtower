@@ -217,9 +217,17 @@
     updateUptime();
     setInterval(updateUptime, 60000);
     
-    // Theme switching (persists in localStorage)
+    // Theme switching — uses the global toggleTheme() from base.html
     function setTheme(theme) {
-        localStorage.setItem('theme', theme);
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        if (current !== theme) {
+            toggleTheme();
+        }
+        updateSettingsThemeButtons();
+    }
+    
+    function updateSettingsThemeButtons() {
+        const theme = document.documentElement.getAttribute('data-theme') || 'dark';
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.remove('bg-wt-accent-indigo-light', 'text-wt-accent-indigo');
             btn.classList.add('text-wt-text-tertiary');
@@ -229,16 +237,10 @@
             activeBtn.classList.remove('text-wt-text-tertiary');
             activeBtn.classList.add('bg-wt-accent-indigo-light', 'text-wt-accent-indigo');
         }
-        
-        // Apply theme (currently only dark is fully styled)
-        if (theme === 'light') {
-            showToast('Light mode coming soon!', 'info');
-        }
     }
     
-    // Initialize theme state
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    setTheme(savedTheme);
+    // Initialize theme button state
+    updateSettingsThemeButtons();
     
     // Copy API endpoint
     function copyApiEndpoint() {
