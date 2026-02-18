@@ -139,22 +139,24 @@ WantedBy=multi-user.target
 
 ### Docker
 
-```dockerfile
-FROM rust:1.88 AS builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
+```bash
+# Build
+docker build -t watchtower:latest .
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/watchtower /usr/local/bin/
-COPY --from=builder /app/templates /app/templates
-COPY --from=builder /app/static /app/static
-COPY --from=builder /app/migrations /app/migrations
-WORKDIR /app
-EXPOSE 3002
-CMD ["watchtower"]
+# Run
+docker run -d \
+  --name watchtower-dashboard \
+  -p 3002:3002 \
+  -v ./data:/app/data \
+  -v ~/.openclaw:/openclaw:ro \
+  -e OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789 \
+  -e OPENCLAW_LOG_PATH=/openclaw/logs/gateway.log \
+  -e OPENCLAW_SESSIONS_DIR=/openclaw/agents/main/sessions \
+  --add-host=host.docker.internal:host-gateway \
+  watchtower:latest
 ```
+
+Or use the included `docker-compose.snippet.yml` to add it to an existing compose stack. The container mounts `~/.openclaw` read-only for gateway auth and log access.
 
 ## Design
 

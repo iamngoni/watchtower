@@ -3,26 +3,29 @@
 
 services:
   watchtower-dashboard:
-    image: watchtower:latest
+    build: ./watchtower
     container_name: watchtower-dashboard
     ports:
       - "3002:3002"
     volumes:
-      - ./watchtower/data:/data
-      - /tmp/clawdbot:/logs:ro
+      - ./watchtower/data:/app/data
+      - ${HOME}/.openclaw:/openclaw:ro
     environment:
       - PORT=3002
-      - DATABASE_URL=sqlite:/data/watchtower.db
-      - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN}
-      - WATCHTOWER_USER=${DASHBOARD_USER}
-      - WATCHTOWER_PASS=${DASHBOARD_PASS}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DATABASE_URL=sqlite:/app/data/watchtower.db
+      - OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789
+      - OPENCLAW_LOG_PATH=/openclaw/logs/gateway.log
+      - OPENCLAW_SESSIONS_DIR=/openclaw/agents/main/sessions
+      - WATCHTOWER_API_TOKEN=${WATCHTOWER_API_TOKEN:-}
+      - WATCHTOWER_USER=${WATCHTOWER_USER:-}
+      - WATCHTOWER_PASS=${WATCHTOWER_PASS:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     restart: unless-stopped
-    networks:
-      - homelab
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/"]
       interval: 30s
       timeout: 10s
       retries: 3
