@@ -274,55 +274,105 @@
         });
     });
 
-    // Event grouping - group events within 2 seconds of each other
+    // Activity burst grouping
+    // Groups consecutive events of the same category within 30 seconds into collapsible cards
     function groupRecentEvents() {
-        const events = Array.from(document.querySelectorAll('.event-item:not(.event-group):not(.grouped-event)'));
-        if (events.length < 2) return;
+        const events = Array.from(document.querySelectorAll('.event-item:not(.grouped-event)'));
+        if (events.length < 3) return;
+        
+        // Category mapping
+        function getCategory(type) {
+            if (!type) return 'other';
+            if (type.includes('shell') || type.includes('exec')) return 'shell';
+            if (type.includes('file') || type.includes('write') || type.includes('read') || type.includes('edit')) return 'file';
+            if (type.includes('api') || type.includes('request')) return 'api';
+            if (type.includes('message') || type.includes('chat')) return 'message';
+            if (type.includes('agent')) return 'agent';
+            if (type.includes('_result')) return 'result';
+            return 'other';
+        }
+        
+        function getCategoryLabel(cat, count) {
+            const labels = {
+                shell: '🖥 shell commands',
+                file: '📄 file operations', 
+                api: '🌐 API calls',
+                message: '💬 messages',
+                agent: '🤖 agent events',
+                result: '✅ tool results',
+                other: 'events'
+            };
+            return `${count} ${labels[cat] || labels.other}`;
+        }
+        
+        function getCategoryIcon(cat) {
+            const icons = { shell: 'terminal', file: 'file-edit', api: 'globe', message: 'message-circle', agent: 'git-branch', result: 'check-circle', other: 'layers' };
+            return icons[cat] || 'layers';
+        }
+        
+        function getCategoryColor(cat) {
+            const colors = { shell: 'wt-accent-indigo', file: 'wt-accent-green', api: 'wt-accent-orange', message: 'wt-accent-blue', agent: 'wt-accent-indigo', result: 'wt-accent-green', other: 'wt-text-tertiary' };
+            return colors[cat] || 'wt-text-tertiary';
+        }
         
         let groups = [];
         let currentGroup = [events[0]];
-        let currentTimestamp = parseInt(events[0]?.dataset?.timestampRaw || 0);
+        let currentCat = getCategory(events[0]?.dataset?.eventType);
+        let currentTs = parseInt(events[0]?.dataset?.timestampRaw || 0);
         
         for (let i = 1; i < events.length; i++) {
-            const timestamp = parseInt(events[i]?.dataset?.timestampRaw || 0);
-            const diff = Math.abs(currentTimestamp - timestamp);
+            const cat = getCategory(events[i]?.dataset?.eventType);
+            const ts = parseInt(events[i]?.dataset?.timestampRaw || 0);
+            const timeDiff = Math.abs(currentTs - ts);
             
-            if (diff <= 2) {
+            // Group if same category and within 30 seconds
+            if (cat === currentCat && timeDiff <= 30) {
                 currentGroup.push(events[i]);
             } else {
                 if (currentGroup.length >= 3) {
-                    groups.push([...currentGroup]);
+                    groups.push({ events: [...currentGroup], category: currentCat });
                 }
                 currentGroup = [events[i]];
-                currentTimestamp = timestamp;
+                currentCat = cat;
+                currentTs = ts;
             }
         }
-        
         if (currentGroup.length >= 3) {
-            groups.push(currentGroup);
+            groups.push({ events: currentGroup, category: currentCat });
         }
         
-        // Create group wrappers
+        // Create collapsible group wrappers
         groups.forEach(group => {
+            const cat = group.category;
+            const color = getCategoryColor(cat);
+            const icon = getCategoryIcon(cat);
+            const label = getCategoryLabel(cat, group.events.length);
+            
+            // Get first event's summary as preview
+            const firstSummary = group.events[0]?.querySelector('.event-summary')?.textContent || '';
+            const lastSummary = group.events[group.events.length - 1]?.querySelector('.event-summary')?.textContent || '';
+            
             const wrapper = document.createElement('div');
-            wrapper.className = 'event-group bg-wt-bg-card rounded-xl border border-wt-border-subtle mb-2';
+            wrapper.className = 'event-group bg-wt-bg-card rounded-xl border border-wt-border-subtle mb-2 overflow-hidden';
+            wrapper.dataset.eventType = group.events[0]?.dataset?.eventType || '';
             
             const header = document.createElement('button');
-            header.className = 'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-wt-bg-page/50 rounded-xl transition-colors';
+            header.className = 'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-wt-bg-page/50 transition-colors';
             header.innerHTML = `
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-wt-bg-page">
-                    <i data-lucide="layers" class="w-4 h-4 text-wt-text-tertiary"></i>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-${color}/15 flex-shrink-0">
+                    <i data-lucide="${icon}" class="w-4 h-4 text-${color}"></i>
                 </div>
-                <span class="text-sm font-medium text-wt-text-secondary">${group.length} events</span>
-                <span class="text-xs text-wt-text-tertiary ml-auto">Click to expand</span>
-                <i data-lucide="chevron-down" class="w-4 h-4 text-wt-text-tertiary group-chevron"></i>
+                <div class="flex-1 min-w-0">
+                    <span class="text-sm font-medium text-wt-text-primary">${label}</span>
+                    <p class="text-xs text-wt-text-tertiary truncate mt-0.5">${escapeHtmlGlobal(firstSummary)}${firstSummary !== lastSummary ? ' → ' + escapeHtmlGlobal(lastSummary) : ''}</p>
+                </div>
+                <i data-lucide="chevron-down" class="w-4 h-4 text-wt-text-tertiary flex-shrink-0 group-chevron transition-transform"></i>
             `;
             
             const content = document.createElement('div');
-            content.className = 'hidden px-2 pb-2 grouped-events-content';
+            content.className = 'hidden border-t border-wt-border-subtle';
             
-            // Move events into content
-            group.forEach(event => {
+            group.events.forEach(event => {
                 event.classList.add('grouped-event');
                 content.appendChild(event);
             });
@@ -336,15 +386,21 @@
             wrapper.appendChild(header);
             wrapper.appendChild(content);
             
-            // Insert wrapper at the position of first event
-            const firstEventParent = eventsContainer;
-            const firstEventIndex = Array.from(firstEventParent.children).indexOf(group[0]);
-            if (firstEventIndex >= 0 && firstEventParent.children[firstEventIndex]) {
-                firstEventParent.insertBefore(wrapper, firstEventParent.children[firstEventIndex]);
+            // Insert where the first event was
+            const parent = eventsContainer;
+            const placeholder = group.events[0];
+            if (placeholder && placeholder.parentNode === parent) {
+                parent.insertBefore(wrapper, placeholder);
             }
             
             lucide.createIcons({ nodes: wrapper.querySelectorAll('[data-lucide]') });
         });
+    }
+    
+    function escapeHtmlGlobal(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // Initialize
