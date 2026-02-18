@@ -108,10 +108,14 @@ Open `http://localhost:3002`
 | `PORT` | `3002` | HTTP server port |
 | `DATABASE_URL` | `sqlite:data/watchtower.db` | SQLite database path |
 | `OPENCLAW_GATEWAY_URL` | `ws://127.0.0.1:18789` | Gateway WebSocket URL |
-| `OPENCLAW_LOG_PATH` | `~/.openclaw/logs/gateway.log` | Log file to tail |
-| `OPENCLAW_SESSIONS_DIR` | `~/.openclaw/agents/main/sessions` | Session files directory |
-| `WEB_USER` | *(empty)* | Basic auth username (optional) |
-| `WEB_PASS` | *(empty)* | Basic auth password (optional) |
+| `OPENCLAW_GATEWAY_PASSWORD` | *(from openclaw.json)* | Gateway auth password (optional, auto-detected) |
+| `OPENCLAW_LOG_PATH` | `~/.openclaw/logs/gateway.log` | Log file to tail (fallback) |
+| `OPENCLAW_SESSIONS_DIR` | `~/.openclaw/agents/main/sessions` | Session JSONL directory |
+| `WATCHTOWER_API_TOKEN` | *(empty)* | API token for external integrations (optional) |
+| `WATCHTOWER_USER` | *(empty)* | Basic auth username (optional) |
+| `WATCHTOWER_PASS` | *(empty)* | Basic auth password (optional) |
+| `TELEGRAM_BOT_TOKEN` | *(empty)* | Telegram bot token for direct alerts (optional) |
+| `TELEGRAM_CHAT_ID` | *(empty)* | Telegram chat ID for direct alerts (optional) |
 
 ### Systemd Service
 
