@@ -17,30 +17,40 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
+        // Theme initialization (before render to prevent flash)
+        (function() {
+            const saved = localStorage.getItem('wt-theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = saved || (prefersDark ? 'dark' : 'dark'); // default dark
+            document.documentElement.classList.toggle('dark', theme === 'dark');
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
                         wt: {
-                            'bg-page': '#0F0F14',
-                            'bg-sidebar': '#13131A',
-                            'bg-card': '#1A1A24',
-                            'border-subtle': '#1F1F2A',
-                            'border-default': '#2A2A38',
-                            'text-primary': '#F5F5F7',
-                            'text-secondary': '#A0A0B0',
-                            'text-tertiary': '#6B6B7A',
+                            'bg-page': 'var(--wt-bg-page)',
+                            'bg-sidebar': 'var(--wt-bg-sidebar)',
+                            'bg-card': 'var(--wt-bg-card)',
+                            'border-subtle': 'var(--wt-border-subtle)',
+                            'border-default': 'var(--wt-border-default)',
+                            'text-primary': 'var(--wt-text-primary)',
+                            'text-secondary': 'var(--wt-text-secondary)',
+                            'text-tertiary': 'var(--wt-text-tertiary)',
                             'accent-indigo': '#6366F1',
-                            'accent-indigo-light': 'rgba(99, 102, 241, 0.15)',
+                            'accent-indigo-light': 'var(--wt-accent-indigo-light)',
                             'accent-green': '#22C55E',
-                            'accent-green-light': 'rgba(34, 197, 94, 0.15)',
+                            'accent-green-light': 'var(--wt-accent-green-light)',
                             'accent-red': '#EF4444',
-                            'accent-red-light': 'rgba(239, 68, 68, 0.15)',
+                            'accent-red-light': 'var(--wt-accent-red-light)',
                             'accent-orange': '#F59E0B',
-                            'accent-orange-light': 'rgba(245, 158, 11, 0.15)',
+                            'accent-orange-light': 'var(--wt-accent-orange-light)',
                             'accent-blue': '#3B82F6',
-                            'accent-blue-light': 'rgba(59, 130, 246, 0.15)',
+                            'accent-blue-light': 'var(--wt-accent-blue-light)',
                         }
                     },
                     fontFamily: {
@@ -52,8 +62,46 @@
         }
     </script>
     <style>
+        /* Dark theme (default) */
+        :root, [data-theme="dark"] {
+            --wt-bg-page: #0F0F14;
+            --wt-bg-sidebar: #13131A;
+            --wt-bg-card: #1A1A24;
+            --wt-border-subtle: #1F1F2A;
+            --wt-border-default: #2A2A38;
+            --wt-text-primary: #F5F5F7;
+            --wt-text-secondary: #A0A0B0;
+            --wt-text-tertiary: #6B6B7A;
+            --wt-accent-indigo-light: rgba(99, 102, 241, 0.15);
+            --wt-accent-green-light: rgba(34, 197, 94, 0.15);
+            --wt-accent-red-light: rgba(239, 68, 68, 0.15);
+            --wt-accent-orange-light: rgba(245, 158, 11, 0.15);
+            --wt-accent-blue-light: rgba(59, 130, 246, 0.15);
+            --wt-scrollbar-thumb: #2A2A38;
+            --wt-scrollbar-hover: #3A3A48;
+        }
+
+        /* Light theme */
+        [data-theme="light"] {
+            --wt-bg-page: #F5F5F7;
+            --wt-bg-sidebar: #FFFFFF;
+            --wt-bg-card: #FFFFFF;
+            --wt-border-subtle: #E5E5EA;
+            --wt-border-default: #D1D1D6;
+            --wt-text-primary: #1C1C1E;
+            --wt-text-secondary: #636366;
+            --wt-text-tertiary: #8E8E93;
+            --wt-accent-indigo-light: rgba(99, 102, 241, 0.1);
+            --wt-accent-green-light: rgba(34, 197, 94, 0.1);
+            --wt-accent-red-light: rgba(239, 68, 68, 0.1);
+            --wt-accent-orange-light: rgba(245, 158, 11, 0.1);
+            --wt-accent-blue-light: rgba(59, 130, 246, 0.1);
+            --wt-scrollbar-thumb: #D1D1D6;
+            --wt-scrollbar-hover: #AEAEB2;
+        }
+
         body {
-            background: #0F0F14;
+            background: var(--wt-bg-page);
             font-family: 'DM Sans', system-ui, sans-serif;
         }
         .font-display {
@@ -68,12 +116,24 @@
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: #2A2A38;
+            background: var(--wt-scrollbar-thumb);
             border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #3A3A48;
+            background: var(--wt-scrollbar-hover);
         }
+        /* Theme toggle icons */
+        [data-theme="dark"] .theme-icon-moon { display: none !important; }
+        [data-theme="dark"] .theme-icon-sun { display: block !important; }
+        [data-theme="light"] .theme-icon-sun { display: none !important; }
+        [data-theme="light"] .theme-icon-moon { display: block !important; }
+        .theme-icon-sun, .theme-icon-moon { display: none; }
+
+        /* Light mode shadow for cards */
+        [data-theme="light"] .bg-wt-bg-card {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        }
+
         /* Live dot animation */
         @keyframes pulse-live {
             0%, 100% { opacity: 1; }
@@ -166,6 +226,11 @@
                     <i data-lucide="settings" class="w-4 h-4"></i>
                     <span class="text-xs font-medium">Settings</span>
                 </a>
+                <button onclick="toggleTheme()" id="theme-toggle" class="flex items-center gap-2 px-4 py-2 rounded-xl text-wt-text-tertiary hover:bg-wt-bg-card transition-colors w-full" title="Toggle light/dark mode">
+                    <i data-lucide="sun" class="w-4 h-4 theme-icon-sun"></i>
+                    <i data-lucide="moon" class="w-4 h-4 theme-icon-moon"></i>
+                    <span class="text-xs font-medium theme-label"></span>
+                </button>
                 <button onclick="openKeyboardShortcuts()" class="flex items-center gap-2 px-4 py-2 rounded-xl text-wt-text-tertiary hover:bg-wt-bg-card transition-colors w-full">
                     <i data-lucide="keyboard" class="w-4 h-4"></i>
                     <span class="text-xs font-medium">Keyboard shortcuts</span>
@@ -674,6 +739,28 @@
     </div>
     
     <script>
+        // Theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            html.classList.toggle('dark', next === 'dark');
+            localStorage.setItem('wt-theme', next);
+            document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0F0F14' : '#F5F5F7';
+            updateThemeLabel();
+        }
+        
+        function updateThemeLabel() {
+            const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+            document.querySelectorAll('.theme-label').forEach(el => {
+                el.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+            });
+        }
+        
+        // Init theme label on load
+        document.addEventListener('DOMContentLoaded', updateThemeLabel);
+
         function openKeyboardShortcuts() {
             const modal = document.getElementById('keyboard-shortcuts-modal');
             modal.classList.remove('hidden');
